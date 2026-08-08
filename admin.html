@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A3 Admin Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Override to make admin panel always visible and centered */
+        .admin-panel {
+            display: flex !important;
+            position: relative;
+            z-index: auto;
+            height: 100vh;
+            background: var(--cream);
+        }
+        .admin-toggle {
+            display: none !important;
+        }
+        .admin-header .back-link {
+            color: var(--gray);
+            transition: var(--transition);
+            text-decoration: none;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .admin-header .back-link:hover {
+            color: var(--gold);
+        }
+        .admin-login {
+            height: 100vh;
+        }
+        /* Hide modal overlay when not in use (already hidden by default) */
+    </style>
+</head>
+<body>
+    <!-- ADMIN PANEL (always visible) -->
+    <div class="admin-panel" id="adminPanel">
+        <div class="admin-header">
+            <h2><i class="fas fa-crown" style="color:var(--gold);"></i> A3<span style="color:var(--gold);">Glam & Fashion</span> <span style="font-size:14px;color:var(--gray);font-weight:400;">| แผงควบคุม</span></h2>
+            <div style="display:flex;align-items:center;gap:16px;">
+                <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> กลับหน้าร้าน</a>
+                <button class="close-admin" id="adminLogoutBtn"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
+        </div>
+        <div class="admin-body">
+            <nav class="admin-sidebar" id="adminSidebar">
+                <div class="menu-item active" data-tab="dashboard"><i class="fas fa-chart-pie"></i> <span>Dashboard</span></div>
+                <div class="menu-item" data-tab="products"><i class="fas fa-box"></i> <span>สินค้า</span></div>
+                <div class="menu-item" data-tab="categories"><i class="fas fa-tags"></i> <span>หมวดหมู่</span></div>
+                <div class="menu-item" data-tab="orders"><i class="fas fa-receipt"></i> <span>คำสั่งซื้อ</span></div>
+            </nav>
+            <div class="admin-content" id="adminContent">
+                <!-- Rendered by admin.js -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL (shared) -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-content" id="modalContent">
+            <button class="close-modal" id="modalCloseBtn"><i class="fas fa-times"></i></button>
+            <h3 id="modalTitle">เพิ่มสินค้า</h3>
+            <form id="modalForm">
+                <div id="modalBody"></div>
+                <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;" id="modalSubmitBtn">บันทึก</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

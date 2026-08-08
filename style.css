@@ -157,6 +157,31 @@ ul {
     align-items: center;
     gap: 18px;
 }
+.lang-currency-select {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 4px 8px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray);
+    transition: var(--transition);
+    cursor: pointer;
+    font-family: var(--font-sans);
+}
+.lang-currency-select:hover {
+    color: var(--gold-dark);
+}
+.lang-currency-select:focus {
+    outline: none;
+    border-color: var(--gold);
+    background: rgba(201, 168, 76, 0.08);
+    color: var(--gold-dark);
+}
+.lang-currency-select option {
+    background: white;
+    color: var(--dark);
+}
 .lang-currency {
     display: flex;
     align-items: center;
