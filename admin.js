@@ -39,16 +39,17 @@ function formatPrice(amount) {
 // ============================================
 async function fetchExchangeRate() {
     try {
-        const response = await fetch('https://api.exchangerate.host/convert?from=THB&to=USD&amount=1');
+        const response = await fetch('https://api.exchangerate.host/latest?base=THB&symbols=USD');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        if (data && typeof data.result === 'number') {
-            exchangeRate = data.result; // e.g., 0.0286
+        // The API returns: { base: "THB", rates: { USD: 0.0286 }, ... }
+        if (data && data.rates && typeof data.rates.USD === 'number') {
+            exchangeRate = data.rates.USD;
             rateLastUpdated = Date.now();
             console.log(`✅ Exchange rate updated: 1 THB = ${exchangeRate} USD`);
             return exchangeRate;
         } else {
-            throw new Error('Invalid response');
+            throw new Error('Invalid response structure');
         }
     } catch (error) {
         console.warn('⚠️ Exchange rate fetch failed, using fallback:', error.message);

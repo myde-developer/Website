@@ -12,7 +12,7 @@ let selectedCategory = 'all';
 let isTranslatingUI = false; // prevent multiple simultaneous translations
 
 // --- EXCHANGE RATE STATE ---
-let exchangeRate = 35;
+let exchangeRate = 0.03;
 let rateLastUpdated = null;
 const RATE_CACHE_MINUTES = 5;
 
@@ -71,21 +71,24 @@ async function saveOrder(order) {
 // ============================================
 async function fetchExchangeRate() {
     try {
-        const response = await fetch('https://api.frankfurter.app/latest?from=THB&to=USD');
-        if (!response.ok) throw new Error('Network error');
+        const response = await fetch('https://api.exchangerate.host/latest?base=THB&symbols=USD');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        if (data.rates && data.rates.USD) {
+        // The API returns: { base: "THB", rates: { USD: 0.0286 }, ... }
+        if (data && data.rates && typeof data.rates.USD === 'number') {
             exchangeRate = data.rates.USD;
             rateLastUpdated = Date.now();
-            console.log(`✅ Exchange rate: 1 THB = ${exchangeRate} USD`);
+            console.log(`✅ Exchange rate updated: 1 THB = ${exchangeRate} USD`);
             return exchangeRate;
+        } else {
+            throw new Error('Invalid response structure');
         }
-    } catch (e) {
-        console.warn('⚠️ Using fallback exchange rate:', e);
+    } catch (error) {
+        console.warn('⚠️ Exchange rate fetch failed, using fallback:', error.message);
+        exchangeRate = 0.03; // realistic fallback
         return exchangeRate;
     }
 }
-
 function getExchangeRate() {
     if (!rateLastUpdated || (Date.now() - rateLastUpdated) > RATE_CACHE_MINUTES * 60 * 1000) {
         fetchExchangeRate().then(() => {
