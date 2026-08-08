@@ -1,7 +1,7 @@
 // ============================================
 // 🔥 UPDATE THIS URL when you deploy your backend to Render
 // ============================================
-const API_URL = 'http://localhost:5000/api'; // ← Change to your Render URL: https://your-api.onrender.com/api
+const API_URL = 'https://website-219o.onrender.com'; 
 
 // --- STATE ---
 let appData = { products: [], categories: [], orders: [] };
