@@ -21,7 +21,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
       rejectUnauthorized: false, // Required for Neon
     },
   },
-  logging: false, // Set to console.log for debugging SQL
+  logging: false,
 });
 
 // --- DEFINE MODELS ---
@@ -31,7 +31,7 @@ const Admin = sequelize.define('Admin', {
 });
 
 const Category = sequelize.define('Category', {
-  id: { type: DataTypes.STRING, primaryKey: true }, // e.g. 'gowns'
+  id: { type: DataTypes.STRING, primaryKey: true },
   th: { type: DataTypes.STRING, allowNull: false },
   en: { type: DataTypes.STRING, allowNull: false },
   icon: { type: DataTypes.STRING, allowNull: false },
@@ -58,14 +58,8 @@ const Order = sequelize.define('Order', {
   items: { type: DataTypes.JSONB, defaultValue: [] },
 });
 
-// --- SYNC DATABASE (Creates tables if they don't exist) ---
-sequelize.sync({ force: false })
-  .then(() => console.log('✅ PostgreSQL (Neon) tables synced!'))
-  .catch(err => console.error('❌ DB Sync Error:', err));
-
-// --- SEED DATABASE (Runs only if empty) ---
+// --- SEED DATABASE (runs only if empty) ---
 async function seedDatabase() {
-  // Seed Admin
   const adminCount = await Admin.count();
   if (adminCount === 0) {
     const hashed = await bcrypt.hash('admin123', 10);
@@ -73,7 +67,6 @@ async function seedDatabase() {
     console.log('🔑 Admin created (admin/admin123)');
   }
 
-  // Seed Categories
   const catCount = await Category.count();
   if (catCount === 0) {
     const defaultCats = [
@@ -92,7 +85,6 @@ async function seedDatabase() {
     console.log('📂 Categories seeded.');
   }
 
-  // Seed Products
   const prodCount = await Product.count();
   if (prodCount === 0) {
     const defaultProducts = [
@@ -192,7 +184,13 @@ app.post('/api/orders', async (req, res) => {
   try {
     await sequelize.authenticate();
     console.log('✅ Neon PostgreSQL connection established.');
+
+    // 🔥 FIX: Await table creation before seeding
+    await sequelize.sync({ force: false });
+    console.log('✅ Tables synced.');
+
     await seedDatabase();
+
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   } catch (error) {
     console.error('❌ Unable to connect to the database:', error);
