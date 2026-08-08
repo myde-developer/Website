@@ -140,6 +140,9 @@
             color: var(--gray);
             margin-top: 4px;
         }
+        .modal-overlay {
+            z-index: 9999;
+        }
     </style>
 </head>
 <body>
@@ -173,6 +176,7 @@
         </div>
     </div>
 
+    <!-- MODAL -->
     <div class="modal-overlay" id="modalOverlay">
         <div class="modal-content" id="modalContent">
             <button class="close-modal" id="modalCloseBtn"><i class="fas fa-times"></i></button>

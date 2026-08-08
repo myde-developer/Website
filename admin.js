@@ -3,24 +3,21 @@
 // ============================================
 const API_URL = 'https://website-219o.onrender.com/api';
 
-// ============================================
-// 🔥 CLOUDINARY CONFIG - Replace with your credentials
-// ============================================
-const CLOUDINARY_CONFIG = {
-    cloudName: 'rxgpfkpz',        
-    uploadPreset: 'ml_default',  
-    apiKey: '726651957123698'     
-};
-
 // --- STATE ---
 let appData = { products: [], categories: [], orders: [] };
 let adminLoggedIn = false;
 let currentAdminTab = 'dashboard';
 let editingItem = null;
-let authToken = null;
-let adminLang = 'th';
-let adminCurrency = 'thb';
+let authToken = localStorage.getItem('adminToken');
+let adminLang = localStorage.getItem('adminLang') || 'th';
+let adminCurrency = localStorage.getItem('adminCurrency') || 'thb';
 let uploadedImageUrl = null;
+let searchTerm = '';
+
+// --- RESTORE SESSION ---
+if (authToken) {
+    adminLoggedIn = true;
+}
 
 // --- TRANSLATION HELPER ---
 function t(thText, enText) {
@@ -60,26 +57,24 @@ async function translateText(text, targetLang = 'th') {
 }
 
 // ============================================
-// 🔥 CLOUDINARY IMAGE UPLOAD
+// 🔥 SECURE IMAGE UPLOAD VIA BACKEND
 // ============================================
-async function uploadImageToCloudinary(file) {
+async function uploadImage(file) {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
-    formData.append('cloud_name', CLOUDINARY_CONFIG.cloudName);
-    formData.append('folder', 'a3-products');
+    formData.append('image', file);
 
     try {
-        const response = await fetch(
-            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/image/upload`,
-            {
-                method: 'POST',
-                body: formData
-            }
-        );
+        const response = await fetch(`${API_URL}/upload`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: formData
+        });
+        
+        if (!response.ok) throw new Error('Upload failed');
         const data = await response.json();
-        if (data.error) throw new Error(data.error.message);
-        return data.secure_url;
+        return data.url;
     } catch (error) {
         console.error('Upload failed:', error);
         toast('❌ ' + t('อัปโหลดรูปภาพล้มเหลว', 'Image upload failed'), 'error');
@@ -101,7 +96,22 @@ async function apiFetch(endpoint, options = {}) {
 // ============================================
 // 🔥 LOAD DATA FROM DATABASE
 // ============================================
+function showLoading() {
+    const content = document.getElementById('adminContent');
+    if (content) {
+        content.innerHTML = `
+            <div style="display:flex;justify-content:center;align-items:center;height:200px;">
+                <div style="text-align:center;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:40px;color:var(--gold);"></i>
+                    <p style="margin-top:10px;color:var(--gray);">${t('กำลังโหลด...', 'Loading...')}</p>
+                </div>
+            </div>
+        `;
+    }
+}
+
 async function loadDataFromDB() {
+    showLoading();
     try {
         const [products, categories, orders] = await Promise.all([
             apiFetch('/products'),
@@ -129,6 +139,7 @@ async function adminLogin(username, password) {
             body: JSON.stringify({ username, password })
         });
         authToken = res.token;
+        localStorage.setItem('adminToken', authToken);
         adminLoggedIn = true;
         await loadDataFromDB();
         renderAdmin();
@@ -140,6 +151,7 @@ async function adminLogin(username, password) {
 
 function adminLogout() {
     authToken = null;
+    localStorage.removeItem('adminToken');
     adminLoggedIn = false;
     renderAdmin();
     toast('👋 ' + t('ออกจากระบบ', 'Logged out'));
@@ -148,8 +160,6 @@ function adminLogout() {
 // ============================================
 // 🔥 PRODUCT CRUD OPERATIONS
 // ============================================
-
-// --- CREATE PRODUCT ---
 async function addProduct(productData) {
     try {
         const response = await apiFetch('/products', {
@@ -167,7 +177,6 @@ async function addProduct(productData) {
     }
 }
 
-// --- UPDATE PRODUCT ---
 async function updateProduct(productId, updatedData) {
     try {
         const response = await apiFetch(`/products/${productId}`, {
@@ -185,7 +194,6 @@ async function updateProduct(productId, updatedData) {
     }
 }
 
-// --- DELETE PRODUCT ---
 async function deleteProduct(productId) {
     try {
         const confirmDelete = confirm(t('ลบสินค้านี้ใช่หรือไม่?', 'Delete this product?'));
@@ -203,16 +211,9 @@ async function deleteProduct(productId) {
     }
 }
 
-// --- GET SINGLE PRODUCT ---
-function getProductById(productId) {
-    return appData.products.find(p => p.id === productId);
-}
-
 // ============================================
 // 🔥 CATEGORY CRUD OPERATIONS
 // ============================================
-
-// --- CREATE CATEGORY ---
 async function addCategory(categoryData) {
     try {
         const response = await apiFetch('/categories', {
@@ -230,7 +231,6 @@ async function addCategory(categoryData) {
     }
 }
 
-// --- UPDATE CATEGORY ---
 async function updateCategory(categoryId, updatedData) {
     try {
         const response = await apiFetch(`/categories/${categoryId}`, {
@@ -248,10 +248,8 @@ async function updateCategory(categoryId, updatedData) {
     }
 }
 
-// --- DELETE CATEGORY ---
 async function deleteCategory(categoryId) {
     try {
-        // Check if category has products
         const hasProducts = appData.products.some(p => p.category === categoryId);
         if (hasProducts) {
             toast('❌ ' + t('ไม่สามารถลบได้เนื่องจากมีสินค้าอยู่ในหมวดหมู่นี้', 'Cannot delete category with products'), 'error');
@@ -283,6 +281,7 @@ function getCategoryName(catId) {
 
 function toast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
     const el = document.createElement('div');
     el.className = `toast ${type}`;
     el.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
@@ -299,6 +298,8 @@ function renderAdmin() {
         return;
     }
     const content = document.getElementById('adminContent');
+    if (!content) return;
+    
     switch (currentAdminTab) {
         case 'dashboard': renderDashboard(content); break;
         case 'products': renderProductsAdmin(content); break;
@@ -306,32 +307,35 @@ function renderAdmin() {
         case 'orders': renderOrdersAdmin(content); break;
         default: content.innerHTML = '<p>'+t('เลือกเมนู', 'Select menu')+'</p>';
     }
-    document.getElementById('adminLangSelect').value = adminLang;
-    document.getElementById('adminCurrencySelect').value = adminCurrency;
+    
+    const langSelect = document.getElementById('adminLangSelect');
+    const currencySelect = document.getElementById('adminCurrencySelect');
+    if (langSelect) langSelect.value = adminLang;
+    if (currencySelect) currencySelect.value = adminCurrency;
 }
 
 function renderLogin() {
     const content = document.getElementById('adminContent');
+    if (!content) return;
+    
     content.innerHTML = `
         <div class="admin-login">
             <div class="admin-login-box">
                 <h3><i class="fas fa-crown" style="color:var(--gold);"></i> Admin</h3>
                 <p class="sub">${t('เข้าสู่ระบบแผงควบคุม', 'Admin Login')}</p>
-                <input type="text" id="adminUser" placeholder="${t('ชื่อผู้ใช้', 'Username')}" value="admin">
-                <input type="password" id="adminPass" placeholder="${t('รหัสผ่าน', 'Password')}" value="admin123">
+                <input type="text" id="adminUser" placeholder="${t('ชื่อผู้ใช้', 'Username')}" placeholder="Input Name and Email">
+                <input type="password" id="adminPass" placeholder="${t('รหัสผ่าน', 'Password')}" placeholder="Input Password">
                 <button class="login-btn" id="adminLoginBtn">${t('เข้าสู่ระบบ', 'Login')}</button>
             </div>
         </div>
     `;
     
-    // Login button handler
     document.getElementById('adminLoginBtn').addEventListener('click', () => {
         const username = document.getElementById('adminUser').value;
         const password = document.getElementById('adminPass').value;
         adminLogin(username, password);
     });
     
-    // Enter key handler
     document.getElementById('adminPass').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             document.getElementById('adminLoginBtn').click();
@@ -359,15 +363,34 @@ function renderDashboard(content) {
 }
 
 function renderProductsAdmin(content) {
+    let filteredProducts = appData.products;
+    if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filteredProducts = appData.products.filter(p => 
+            p.name_th.toLowerCase().includes(term) ||
+            p.name_en.toLowerCase().includes(term) ||
+            getCategoryName(p.category).toLowerCase().includes(term)
+        );
+    }
+
     let html = `
         <div class="admin-table-wrap">
             <div class="table-header">
-                <h4><i class="fas fa-box" style="color:var(--gold);"></i> ${t('รายการสินค้า', 'Products')}</h4>
-                <button class="add-btn" id="adminAddProductBtn"><i class="fas fa-plus"></i> ${t('เพิ่มสินค้า', 'Add Product')}</button>
+                <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%;">
+                    <h4><i class="fas fa-box" style="color:var(--gold);"></i> ${t('รายการสินค้า', 'Products')}</h4>
+                    <div style="flex:1;min-width:200px;display:flex;gap:8px;">
+                        <input type="text" id="productSearch" placeholder="${t('ค้นหาสินค้า...', 'Search products...')}" 
+                               style="flex:1;padding:8px 16px;border:1px solid var(--light-gray);border-radius:var(--radius-sm);background:var(--cream);">
+                        <button class="add-btn" id="adminAddProductBtn" style="white-space:nowrap;">
+                            <i class="fas fa-plus"></i> ${t('เพิ่มสินค้า', 'Add Product')}
+                        </button>
+                    </div>
+                </div>
             </div>
             <table class="admin-table">
                 <thead>
                     <tr>
+                        <th>${t('รูป', 'Image')}</th>
                         <th>#</th>
                         <th>${t('ชื่อ', 'Name')}</th>
                         <th>${t('หมวดหมู่', 'Category')}</th>
@@ -378,12 +401,19 @@ function renderProductsAdmin(content) {
                 <tbody>
     `;
     
-    if (appData.products.length === 0) {
-        html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray);">${t('ยังไม่มีสินค้า', 'No products')}</td></tr>`;
+    if (filteredProducts.length === 0) {
+        html += `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gray);">
+            ${searchTerm ? t('ไม่พบสินค้าที่ค้นหา', 'No products found') : t('ยังไม่มีสินค้า', 'No products')}
+        </td></tr>`;
     } else {
-        appData.products.forEach(p => {
+        filteredProducts.forEach(p => {
+            const imageDisplay = p.image && p.image.startsWith('http') ? 
+                `<img src="${p.image}" style="width:50px;height:50px;object-fit:cover;border-radius:4px;">` : 
+                `<span style="font-size:24px;">${p.image || '👗'}</span>`;
+            
             html += `
                 <tr>
+                    <td>${imageDisplay}</td>
                     <td>${p.id}</td>
                     <td>${adminLang === 'th' ? p.name_th : p.name_en}</td>
                     <td><span class="badge">${getCategoryName(p.category)}</span></td>
@@ -402,25 +432,34 @@ function renderProductsAdmin(content) {
     html += `</tbody></table></div>`;
     content.innerHTML = html;
     
-    // --- EVENT LISTENERS ---
+    // --- SEARCH HANDLER ---
+    const searchInput = document.getElementById('productSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            searchTerm = e.target.value;
+            renderProductsAdmin(content);
+        });
+    }
     
-    // Add Product Button
-    document.getElementById('adminAddProductBtn').addEventListener('click', () => {
-        openProductModal();
-    });
+    // --- ADD PRODUCT BUTTON ---
+    const addBtn = document.getElementById('adminAddProductBtn');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            console.log('Add Product button clicked!');
+            openProductModal();
+        });
+    }
     
-    // Edit Buttons
+    // --- EDIT BUTTONS ---
     content.querySelectorAll('.edit-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = parseInt(btn.dataset.id);
             const product = appData.products.find(p => p.id === id);
-            if (product) {
-                openProductModal(product);
-            }
+            if (product) openProductModal(product);
         });
     });
     
-    // Delete Buttons
+    // --- DELETE BUTTONS ---
     content.querySelectorAll('.del-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = parseInt(btn.dataset.id);
@@ -433,8 +472,12 @@ function renderCategoriesAdmin(content) {
     let html = `
         <div class="admin-table-wrap">
             <div class="table-header">
-                <h4><i class="fas fa-tags" style="color:var(--gold);"></i> ${t('หมวดหมู่', 'Categories')}</h4>
-                <button class="add-btn" id="adminAddCategoryBtn"><i class="fas fa-plus"></i> ${t('เพิ่มหมวดหมู่', 'Add Category')}</button>
+                <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%;">
+                    <h4><i class="fas fa-tags" style="color:var(--gold);"></i> ${t('หมวดหมู่', 'Categories')}</h4>
+                    <button class="add-btn" id="adminAddCategoryBtn" style="white-space:nowrap;">
+                        <i class="fas fa-plus"></i> ${t('เพิ่มหมวดหมู่', 'Add Category')}
+                    </button>
+                </div>
             </div>
             <table class="admin-table">
                 <thead>
@@ -474,25 +517,25 @@ function renderCategoriesAdmin(content) {
     html += `</tbody></table></div>`;
     content.innerHTML = html;
     
-    // --- EVENT LISTENERS ---
+    // --- ADD CATEGORY BUTTON ---
+    const addBtn = document.getElementById('adminAddCategoryBtn');
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            console.log('Add Category button clicked!');
+            openCategoryModal();
+        });
+    }
     
-    // Add Category Button
-    document.getElementById('adminAddCategoryBtn').addEventListener('click', () => {
-        openCategoryModal();
-    });
-    
-    // Edit Buttons
+    // --- EDIT BUTTONS ---
     content.querySelectorAll('.edit-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const catId = btn.dataset.id;
             const category = appData.categories.find(c => c.id === catId);
-            if (category) {
-                openCategoryModal(category);
-            }
+            if (category) openCategoryModal(category);
         });
     });
     
-    // Delete Buttons (not disabled)
+    // --- DELETE BUTTONS ---
     content.querySelectorAll('.del-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', () => {
             const catId = btn.dataset.id;
@@ -547,14 +590,21 @@ function renderOrdersAdmin(content) {
 }
 
 // ============================================
-// 🔥 PRODUCT MODAL WITH IMAGE UPLOAD
+// 🔥 PRODUCT MODAL
 // ============================================
 function openProductModal(product = null) {
+    console.log('Opening product modal...', product);
+    
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
     const body = document.getElementById('modalBody');
     const submitBtn = document.getElementById('modalSubmitBtn');
     const form = document.getElementById('modalForm');
+    
+    if (!overlay || !body) {
+        console.error('Modal elements not found!');
+        return;
+    }
     
     editingItem = product;
     uploadedImageUrl = product ? product.image : null;
@@ -572,7 +622,7 @@ function openProductModal(product = null) {
 
     const imageHtml = uploadedImageUrl && uploadedImageUrl.startsWith('http') ? 
         `<img src="${uploadedImageUrl}" alt="Product image" style="max-width:200px;max-height:200px;border-radius:8px;margin:10px auto;">` :
-        `<div class="placeholder-text"><i class="fas fa-image"></i> ${t('คลิกเพื่ออัปโหลดรูปภาพ', 'Click to upload image')}</div>`;
+        `<div class="placeholder-text"><i class="fas fa-cloud-upload-alt"></i> ${t('คลิกเพื่ออัปโหลดรูปภาพ', 'Click to upload image')}</div>`;
 
     body.innerHTML = `
         <div class="form-group">
@@ -633,9 +683,10 @@ function openProductModal(product = null) {
         </div>
     `;
 
+    overlay.style.display = 'flex';
     overlay.classList.add('open');
 
-// --- IMAGE UPLOAD HANDLERS ---
+ // --- IMAGE UPLOAD HANDLERS ---
     const uploadContainer = document.getElementById('imageUploadContainer');
     const fileInput = document.getElementById('imageInput');
     const previewDiv = document.getElementById('imagePreview');
@@ -644,59 +695,97 @@ function openProductModal(product = null) {
     const progressFill = document.getElementById('progressFill');
     const statusText = document.getElementById('uploadStatus');
 
-    uploadContainer.addEventListener('click', (e) => {
-        if (e.target === removeBtn || e.target.closest('.remove-image')) return;
-        fileInput.click();
-    });
+    if (uploadContainer) {
+        uploadContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadContainer.style.borderColor = 'var(--gold)';
+            uploadContainer.style.background = 'rgba(201,168,76,0.08)';
+        });
 
-    fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (!file.type.startsWith('image/')) {
-            toast(t('กรุณาเลือกรูปภาพเท่านั้น', 'Please select an image file'), 'error');
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            toast(t('ขนาดไฟล์ต้องไม่เกิน 5MB', 'File size must be under 5MB'), 'error');
-            return;
-        }
+        uploadContainer.addEventListener('dragleave', () => {
+            uploadContainer.style.borderColor = '';
+            uploadContainer.style.background = '';
+        });
 
-        progressDiv.classList.add('active');
-        progressFill.style.width = '0%';
-        statusText.textContent = t('กำลังอัปโหลด...', 'Uploading...');
-        uploadContainer.style.borderColor = 'var(--gold)';
+        uploadContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadContainer.style.borderColor = '';
+            uploadContainer.style.background = '';
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
 
-        const url = await uploadImageToCloudinary(file);
-        
-        if (url) {
-            uploadedImageUrl = url;
-            previewDiv.innerHTML = `<img src="${url}" alt="Product image" style="max-width:200px;max-height:200px;border-radius:8px;margin:10px auto;">`;
-            removeBtn.style.display = 'flex';
-            uploadContainer.classList.add('has-image');
-            toast(t('อัปโหลดรูปภาพสำเร็จ ✅', 'Image uploaded successfully ✅'));
-        }
-        
-        progressDiv.classList.remove('active');
-        uploadContainer.style.borderColor = '';
-    });
+        uploadContainer.addEventListener('click', (e) => {
+            if (e.target === removeBtn || e.target.closest('.remove-image')) return;
+            fileInput.click();
+        });
+    }
 
-    removeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        uploadedImageUrl = null;
-        previewDiv.innerHTML = `<div class="placeholder-text"><i class="fas fa-image"></i> ${t('คลิกเพื่ออัปโหลดรูปภาพ', 'Click to upload image')}</div>`;
-        removeBtn.style.display = 'none';
-        uploadContainer.classList.remove('has-image');
-        fileInput.value = '';
-    });
+    if (fileInput) {
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                toast(t('กรุณาเลือกรูปภาพเท่านั้น', 'Please select an image file'), 'error');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                toast(t('ขนาดไฟล์ต้องไม่เกิน 5MB', 'File size must be under 5MB'), 'error');
+                return;
+            }
+
+            if (progressDiv) {
+                progressDiv.classList.add('active');
+                if (progressFill) progressFill.style.width = '0%';
+                if (statusText) statusText.textContent = t('กำลังอัปโหลด...', 'Uploading...');
+            }
+            if (uploadContainer) uploadContainer.style.borderColor = 'var(--gold)';
+
+            const url = await uploadImage(file);
+            
+            if (url) {
+                uploadedImageUrl = url;
+                if (previewDiv) {
+                    previewDiv.innerHTML = `<img src="${url}" alt="Product image" style="max-width:200px;max-height:200px;border-radius:8px;margin:10px auto;">`;
+                }
+                if (removeBtn) removeBtn.style.display = 'flex';
+                if (uploadContainer) uploadContainer.classList.add('has-image');
+                toast(t('อัปโหลดรูปภาพสำเร็จ ✅', 'Image uploaded successfully ✅'));
+            }
+            
+            if (progressDiv) progressDiv.classList.remove('active');
+            if (uploadContainer) uploadContainer.style.borderColor = '';
+        });
+    }
+
+    if (removeBtn) {
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            uploadedImageUrl = null;
+            if (previewDiv) {
+                previewDiv.innerHTML = `<div class="placeholder-text"><i class="fas fa-cloud-upload-alt"></i> ${t('คลิกเพื่ออัปโหลดรูปภาพ', 'Click to upload image')}</div>`;
+            }
+            removeBtn.style.display = 'none';
+            if (uploadContainer) uploadContainer.classList.remove('has-image');
+            if (fileInput) fileInput.value = '';
+        });
+    }
 
     // --- AUTO-TRANSLATE BUTTON ---
     const translateBtn = document.getElementById('autoTranslateBtn');
     if (translateBtn) {
         translateBtn.addEventListener('click', async () => {
-            const nameEn = document.getElementById('pNameEn').value.trim();
-            const descEn = document.getElementById('pDescEn').value.trim();
+            const nameEn = document.getElementById('pNameEn');
+            const descEn = document.getElementById('pDescEn');
             
-            if (!nameEn && !descEn) {
+            if (!nameEn || !descEn) return;
+            
+            const nameEnValue = nameEn.value.trim();
+            const descEnValue = descEn.value.trim();
+            
+            if (!nameEnValue && !descEnValue) {
                 toast(t('กรุณากรอกข้อมูลภาษาอังกฤษก่อน', 'Please enter English text first'), 'error');
                 return;
             }
@@ -705,13 +794,15 @@ function openProductModal(product = null) {
             translateBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังแปล...', 'Translating...')}`;
 
             try {
-                if (nameEn) {
-                    const nameTh = await translateText(nameEn, 'th');
-                    document.getElementById('pNameTh').value = nameTh;
+                if (nameEnValue) {
+                    const nameTh = await translateText(nameEnValue, 'th');
+                    const nameThInput = document.getElementById('pNameTh');
+                    if (nameThInput) nameThInput.value = nameTh;
                 }
-                if (descEn) {
-                    const descTh = await translateText(descEn, 'th');
-                    document.getElementById('pDescTh').value = descTh;
+                if (descEnValue) {
+                    const descTh = await translateText(descEnValue, 'th');
+                    const descThInput = document.getElementById('pDescTh');
+                    if (descThInput) descThInput.value = descTh;
                 }
                 toast(t('แปลสำเร็จ ✅', 'Translation successful ✅'));
             } catch (error) {
@@ -724,41 +815,95 @@ function openProductModal(product = null) {
     }
 
     // --- FORM SUBMIT ---
-    form.onsubmit = async (e) => {
-        e.preventDefault();
-        const payload = {
-            name_th: document.getElementById('pNameTh').value.trim(),
-            name_en: document.getElementById('pNameEn').value.trim(),
-            category: document.getElementById('pCategory').value,
-            price: parseFloat(document.getElementById('pPrice').value),
-            desc_th: document.getElementById('pDescTh').value.trim(),
-            desc_en: document.getElementById('pDescEn').value.trim(),
-            image: uploadedImageUrl || '👗',
-            sizes: Array.from(document.getElementById('pSizes').selectedOptions).map(opt => opt.value),
+    if (form) {
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const nameTh = document.getElementById('pNameTh');
+            const nameEn = document.getElementById('pNameEn');
+            const category = document.getElementById('pCategory');
+            const price = document.getElementById('pPrice');
+            const descTh = document.getElementById('pDescTh');
+            const descEn = document.getElementById('pDescEn');
+            const sizes = document.getElementById('pSizes');
+            
+            if (!nameTh || !nameEn || !category || !price) {
+                toast(t('กรุณากรอกข้อมูลให้ครบถ้วน', 'Please fill all required fields'), 'error');
+                return;
+            }
+            
+            const payload = {
+                name_th: nameTh.value.trim(),
+                name_en: nameEn.value.trim(),
+                category: category.value,
+                price: parseFloat(price.value),
+                desc_th: descTh ? descTh.value.trim() : '',
+                desc_en: descEn ? descEn.value.trim() : '',
+                image: uploadedImageUrl || '👗',
+                sizes: sizes ? Array.from(sizes.selectedOptions).map(opt => opt.value) : [],
+            };
+            
+            // Disable submit button
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังบันทึก...', 'Saving...')}`;
+            }
+            
+            if (editingItem) { 
+                await updateProduct(editingItem.id, { ...editingItem, ...payload }); 
+            } else { 
+                await addProduct(payload); 
+            }
+            
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = editingItem ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
+            }
+            
+            if (overlay) {
+                overlay.classList.remove('open');
+                overlay.style.display = 'none';
+            }
         };
-        
-        if (editingItem) { 
-            await updateProduct(editingItem.id, { ...editingItem, ...payload }); 
-        } else { 
-            await addProduct({ ...payload, id: Date.now() % 100000 }); 
-        }
-        overlay.classList.remove('open');
-    };
+    }
 
-    // Close modal handlers
-    document.getElementById('modalCloseBtn').onclick = () => overlay.classList.remove('open');
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
+    // --- CLOSE MODAL ---
+    const closeBtn = document.getElementById('modalCloseBtn');
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            if (overlay) {
+                overlay.classList.remove('open');
+                overlay.style.display = 'none';
+            }
+        };
+    }
+    
+    if (overlay) {
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.classList.remove('open');
+                overlay.style.display = 'none';
+            }
+        };
+    }
 }
 
 // ============================================
 // 🔥 CATEGORY MODAL
 // ============================================
 function openCategoryModal(category = null) {
+    console.log('Opening category modal...', category);
+    
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
     const body = document.getElementById('modalBody');
     const submitBtn = document.getElementById('modalSubmitBtn');
     const form = document.getElementById('modalForm');
+    
+    if (!overlay || !body) {
+        console.error('Modal elements not found!');
+        return;
+    }
     
     editingItem = category;
     
@@ -793,38 +938,81 @@ function openCategoryModal(category = null) {
         </div>
     `;
     
+    overlay.style.display = 'flex';
     overlay.classList.add('open');
     
     // --- FORM SUBMIT ---
-    form.onsubmit = async (e) => {
-        e.preventDefault();
-        const payload = {
-            id: document.getElementById('cId').value.trim().toLowerCase().replace(/\s+/g, '-'),
-            th: document.getElementById('cTh').value.trim(),
-            en: document.getElementById('cEn').value.trim(),
-            icon: document.getElementById('cIcon').value,
-        };
-        
-        // Check if ID already exists when adding new category
-        if (!category) {
-            const exists = appData.categories.some(c => c.id === payload.id);
-            if (exists) {
-                toast(t('รหัสหมวดหมู่นี้มีอยู่แล้ว', 'Category ID already exists'), 'error');
+    if (form) {
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const cId = document.getElementById('cId');
+            const cTh = document.getElementById('cTh');
+            const cEn = document.getElementById('cEn');
+            const cIcon = document.getElementById('cIcon');
+            
+            if (!cId || !cTh || !cEn || !cIcon) {
+                toast(t('กรุณากรอกข้อมูลให้ครบถ้วน', 'Please fill all fields'), 'error');
                 return;
             }
-        }
-        
-        if (category) {
-            await updateCategory(category.id, payload);
-        } else {
-            await addCategory(payload);
-        }
-        overlay.classList.remove('open');
-    };
+            
+            const payload = {
+                id: cId.value.trim().toLowerCase().replace(/\s+/g, '-'),
+                th: cTh.value.trim(),
+                en: cEn.value.trim(),
+                icon: cIcon.value,
+            };
+            
+            if (!category) {
+                const exists = appData.categories.some(c => c.id === payload.id);
+                if (exists) {
+                    toast(t('รหัสหมวดหมู่นี้มีอยู่แล้ว', 'Category ID already exists'), 'error');
+                    return;
+                }
+            }
+            
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังบันทึก...', 'Saving...')}`;
+            }
+            
+            if (category) {
+                await updateCategory(category.id, payload);
+            } else {
+                await addCategory(payload);
+            }
+            
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = category ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
+            }
+            
+            if (overlay) {
+                overlay.classList.remove('open');
+                overlay.style.display = 'none';
+            }
+        };
+    }
     
-    // Close modal handlers
-    document.getElementById('modalCloseBtn').onclick = () => overlay.classList.remove('open');
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
+    // --- CLOSE MODAL ---
+    const closeBtn = document.getElementById('modalCloseBtn');
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            if (overlay) {
+                overlay.classList.remove('open');
+                overlay.style.display = 'none';
+            }
+        };
+    }
+    
+    if (overlay) {
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.classList.remove('open');
+                overlay.style.display = 'none';
+            }
+        };
+    }
 }
 
 // ============================================
@@ -846,25 +1034,37 @@ document.querySelectorAll('.admin-sidebar .menu-item').forEach(el => {
 // ============================================
 // 🔥 LANGUAGE & CURRENCY DROPDOWN EVENTS
 // ============================================
-document.getElementById('adminLangSelect').addEventListener('change', (e) => {
-    adminLang = e.target.value;
-    renderAdmin();
-});
+const langSelect = document.getElementById('adminLangSelect');
+if (langSelect) {
+    langSelect.addEventListener('change', (e) => {
+        adminLang = e.target.value;
+        localStorage.setItem('adminLang', adminLang);
+        renderAdmin();
+    });
+}
 
-document.getElementById('adminCurrencySelect').addEventListener('change', (e) => {
-    adminCurrency = e.target.value;
-    renderAdmin();
-});
+const currencySelect = document.getElementById('adminCurrencySelect');
+if (currencySelect) {
+    currencySelect.addEventListener('change', (e) => {
+        adminCurrency = e.target.value;
+        localStorage.setItem('adminCurrency', adminCurrency);
+        renderAdmin();
+    });
+}
 
 // ============================================
 // 🔥 LOGOUT
 // ============================================
-document.getElementById('adminLogoutBtn').addEventListener('click', adminLogout);
+const logoutBtn = document.getElementById('adminLogoutBtn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', adminLogout);
+}
 
 // ============================================
 // 🔥 INIT
 // ============================================
 (async function init() {
+    console.log('🚀 Admin panel initializing...');
     await loadDataFromDB();
     renderAdmin();
     console.log('✅ Admin panel ready – API:', API_URL);
