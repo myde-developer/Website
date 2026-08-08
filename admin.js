@@ -1,5 +1,5 @@
 // ============================================
-// 🔥 Same API URL – ensure it matches your backend
+// 🔥 UPDATE API_URL with your deployed backend
 // ============================================
 const API_URL = 'https://website-219o.onrender.com/api';
 
@@ -9,6 +9,7 @@ let adminLoggedIn = false;
 let currentAdminTab = 'dashboard';
 let editingItem = null;
 let authToken = null;
+let adminCurrency = 'thb';
 
 // --- API HELPERS ---
 async function apiFetch(endpoint, options = {}) {
@@ -46,9 +47,9 @@ async function adminLogin(username, password) {
         adminLoggedIn = true;
         await loadDataFromDB();
         renderAdmin();
-        toast('✅ Login successful');
+        toast('✅ เข้าสู่ระบบสำเร็จ');
     } catch (e) {
-        toast('❌ Invalid credentials', 'error');
+        toast('❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
     }
 }
 
@@ -56,7 +57,7 @@ function adminLogout() {
     authToken = null;
     adminLoggedIn = false;
     renderAdmin();
-    toast('👋 Logged out');
+    toast('👋 ออกจากระบบ');
 }
 
 // --- CRUD OPERATIONS ---
@@ -67,13 +68,17 @@ async function addCategory(c) { await apiFetch('/categories', { method: 'POST', 
 async function updateCategory(id, c) { await apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(c) }); await loadDataFromDB(); renderAdmin(); }
 async function deleteCategory(id) { await apiFetch(`/categories/${id}`, { method: 'DELETE' }); await loadDataFromDB(); renderAdmin(); }
 
-// --- UTILITY ---
-function t(thText, enText) { return 'th' === 'th' ? thText : enText; } // always th for admin (or could add lang switch)
-function formatPrice(amount) { return '฿' + amount.toLocaleString(); }
+function formatPrice(amount) {
+    if (adminCurrency === 'thb') return '฿' + amount.toLocaleString();
+    const usd = Math.round(amount / 35);
+    return '$' + usd.toLocaleString();
+}
+
 function getCategoryName(catId) {
     const cat = appData.categories.find(c => c.id === catId);
     return cat ? cat.th : catId;
 }
+
 function toast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
     const el = document.createElement('div');
@@ -97,6 +102,7 @@ function renderAdmin() {
         case 'orders': renderOrdersAdmin(content); break;
         default: content.innerHTML = '<p>เลือกเมนู</p>';
     }
+    document.getElementById('adminCurrencySelect').value = adminCurrency;
 }
 
 function renderLogin() {
@@ -140,7 +146,8 @@ function renderProductsAdmin(content) {
     if (appData.products.length === 0) html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray);">ยังไม่มีสินค้า</td></tr>`;
     else {
         appData.products.forEach(p => {
-            html += `<tr><td>${p.id}</td><td>${p.name_th}</td><td><span class="badge">${getCategoryName(p.category)}</span></td>
+            html += `<tr><td>${p.id}</td><td>${p.name_th}</td>
+                <td><span class="badge">${getCategoryName(p.category)}</span></td>
                 <td>${formatPrice(p.price)}</td>
                 <td><div class="actions"><button class="edit-btn" data-id="${p.id}"><i class="fas fa-edit"></i></button>
                 <button class="del-btn" data-id="${p.id}"><i class="fas fa-trash"></i></button></div></td></tr>`;
@@ -203,7 +210,7 @@ function renderOrdersAdmin(content) {
     content.innerHTML = html;
 }
 
-// --- MODALS (same as before) ---
+// --- MODALS ---
 function openProductModal(product = null) {
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -287,7 +294,7 @@ function openCategoryModal(category = null) {
     overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
 }
 
-// --- SIDEBAR NAVIGATION ---
+// --- NAVIGATION ---
 document.querySelectorAll('.admin-sidebar .menu-item').forEach(el => {
     el.addEventListener('click', () => {
         const tab = el.dataset.tab;
@@ -297,6 +304,12 @@ document.querySelectorAll('.admin-sidebar .menu-item').forEach(el => {
             renderAdmin();
         }
     });
+});
+
+// --- CURRENCY ---
+document.getElementById('adminCurrencySelect').addEventListener('change', (e) => {
+    adminCurrency = e.target.value;
+    renderAdmin();
 });
 
 // --- LOGOUT ---

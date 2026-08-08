@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Override to make admin panel always visible and centered */
+        /* Admin panel overrides */
         .admin-panel {
             display: flex !important;
             position: relative;
@@ -16,9 +16,7 @@
             height: 100vh;
             background: var(--cream);
         }
-        .admin-toggle {
-            display: none !important;
-        }
+        .admin-toggle { display: none !important; }
         .admin-header .back-link {
             color: var(--gray);
             transition: var(--transition);
@@ -28,21 +26,60 @@
             align-items: center;
             gap: 6px;
         }
-        .admin-header .back-link:hover {
-            color: var(--gold);
+        .admin-header .back-link:hover { color: var(--gold); }
+        .admin-login { height: 100vh; }
+        .admin-lang-currency {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 12px;
         }
-        .admin-login {
-            height: 100vh;
+        .admin-lang-currency select {
+            background: transparent;
+            border: 1px solid var(--light-gray);
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray);
+            cursor: pointer;
+            font-family: var(--font-sans);
+            transition: var(--transition);
         }
-        /* Hide modal overlay when not in use (already hidden by default) */
+        .admin-lang-currency select:hover {
+            border-color: var(--gold);
+            color: var(--gold-dark);
+        }
+        .admin-lang-currency select:focus {
+            outline: none;
+            border-color: var(--gold);
+            background: rgba(201,168,76,0.08);
+        }
+        .admin-lang-currency .divider { color: var(--light-gray); }
+        /* Hide Google Translate banner */
+        .goog-te-banner-frame { display: none !important; }
+        body { top: 0 !important; }
     </style>
 </head>
 <body>
-    <!-- ADMIN PANEL (always visible) -->
+
+    <!-- ADMIN PANEL -->
     <div class="admin-panel" id="adminPanel">
         <div class="admin-header">
             <h2><i class="fas fa-crown" style="color:var(--gold);"></i> A3<span style="color:var(--gold);">Glam & Fashion</span> <span style="font-size:14px;color:var(--gray);font-weight:400;">| แผงควบคุม</span></h2>
             <div style="display:flex;align-items:center;gap:16px;">
+                <!-- Language & Currency dropdowns -->
+                <div class="admin-lang-currency">
+                    <select id="adminLangSelect">
+                        <option value="th">ไทย</option>
+                        <option value="en">English</option>
+                    </select>
+                    <span class="divider">|</span>
+                    <select id="adminCurrencySelect">
+                        <option value="thb">฿</option>
+                        <option value="usd">$</option>
+                    </select>
+                </div>
                 <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> กลับหน้าร้าน</a>
                 <button class="close-admin" id="adminLogoutBtn"><i class="fas fa-sign-out-alt"></i></button>
             </div>
@@ -60,7 +97,7 @@
         </div>
     </div>
 
-    <!-- MODAL (shared) -->
+    <!-- MODAL -->
     <div class="modal-overlay" id="modalOverlay">
         <div class="modal-content" id="modalContent">
             <button class="close-modal" id="modalCloseBtn"><i class="fas fa-times"></i></button>
@@ -72,9 +109,54 @@
         </div>
     </div>
 
-    <!-- TOAST CONTAINER -->
+    <!-- TOAST -->
     <div class="toast-container" id="toastContainer"></div>
 
+    <!-- Admin JavaScript -->
     <script src="admin.js"></script>
+
+    <!-- Google Translate Widget -->
+    <div id="google_translate_element" style="display:none;"></div>
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'th',
+                includedLanguages: 'th,en',
+                autoDisplay: false,
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+            }, 'google_translate_element');
+        }
+
+        function translatePage(lang) {
+            const select = document.querySelector('.goog-te-combo');
+            if (select) {
+                select.value = lang;
+                select.dispatchEvent(new Event('change'));
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const langSelect = document.getElementById('adminLangSelect');
+            if (langSelect) {
+                langSelect.addEventListener('change', function(e) {
+                    const lang = e.target.value;
+                    if (lang === 'en') {
+                        if (typeof google !== 'undefined' && google.translate) {
+                            translatePage('en');
+                        } else {
+                            setTimeout(() => translatePage('en'), 1000);
+                        }
+                    } else {
+                        if (typeof google !== 'undefined' && google.translate) {
+                            translatePage('th');
+                        } else {
+                            setTimeout(() => translatePage('th'), 1000);
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>
 </html>
