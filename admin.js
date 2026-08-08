@@ -14,7 +14,7 @@ let adminCurrency = localStorage.getItem('adminCurrency') || 'thb';
 let uploadedImageUrl = null;
 let searchTerm = '';
 // --- EXCHANGE RATE STATE ---
-let exchangeRate = 35; // fallback
+let exchangeRate = 0.03; // 1 THB ≈ 0.03 USD
 let rateLastUpdated = null;
 const RATE_CACHE_MINUTES = 5;
 
@@ -39,28 +39,20 @@ function formatPrice(amount) {
 // ============================================
 async function fetchExchangeRate() {
     try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-
-        const response = await fetch('https://api.frankfurter.app/latest?from=THB&to=USD', {
-            signal: controller.signal
-        });
-        clearTimeout(timeout);
-
+        const response = await fetch('https://api.exchangerate.host/convert?from=THB&to=USD&amount=1');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
         const data = await response.json();
-        if (data && data.rates && typeof data.rates.USD === 'number') {
-            exchangeRate = data.rates.USD;
+        if (data && typeof data.result === 'number') {
+            exchangeRate = data.result; // e.g., 0.0286
             rateLastUpdated = Date.now();
             console.log(`✅ Exchange rate updated: 1 THB = ${exchangeRate} USD`);
             return exchangeRate;
         } else {
-            throw new Error('Invalid response structure');
+            throw new Error('Invalid response');
         }
     } catch (error) {
-        console.warn('⚠️ Exchange rate fetch failed, using fallback:', error.message || error);
-        // Keep using the existing exchangeRate (fallback = 35)
+        console.warn('⚠️ Exchange rate fetch failed, using fallback:', error.message);
+        exchangeRate = 0.03; // realistic fallback
         return exchangeRate;
     }
 }
