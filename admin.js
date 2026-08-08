@@ -288,8 +288,8 @@ function renderLogin() {
             <div class="admin-login-box">
                 <h3><i class="fas fa-crown" style="color:#c9a84c;"></i> Admin</h3>
                 <p class="sub">${t('เข้าสู่ระบบแผงควบคุม', 'Admin Login')}</p>
-                <input type="text" id="adminUser" placeholder="${t('ชื่อผู้ใช้', 'Username')}" value="admin">
-                <input type="password" id="adminPass" placeholder="${t('รหัสผ่าน', 'Password')}" value="admin123">
+                <input type="text" id="adminUser" placeholder="${t('ชื่อผู้ใช้', 'Username')}" placeholder="Input Name and Email">
+                <input type="password" id="adminPass" placeholder="${t('รหัสผ่าน', 'Password')}" placeholder="Input Password">
                 <button class="login-btn" id="adminLoginBtn">${t('เข้าสู่ระบบ', 'Login')}</button>
             </div>
         </div>
@@ -540,7 +540,7 @@ function renderOrdersAdmin(content) {
 }
 
 // ============================================
-// 🔥 PRODUCT MODAL
+// 🔥 PRODUCT MODAL - FULL PAGE VERSION
 // ============================================
 function openProductModal(product = null) {
     console.log('📦 Opening product modal...', product ? 'Edit' : 'Add');
@@ -586,7 +586,7 @@ function openProductModal(product = null) {
             <label>${t('ชื่อภาษาอังกฤษ', 'English Name')}</label>
             <div style="display:flex;gap:8px;align-items:center;">
                 <input type="text" id="pNameEn" value="${product ? product.name_en : ''}" required style="flex:1;">
-                <button type="button" class="btn-primary" id="autoTranslateBtn" style="padding:8px 16px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;width:auto;">
+                <button type="button" class="btn-primary" id="autoTranslateBtn" style="padding:8px 16px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;width:auto;flex-shrink:0;">
                     <i class="fas fa-language"></i> ${t('แปล', 'Translate')}
                 </button>
             </div>
@@ -636,12 +636,13 @@ function openProductModal(product = null) {
         </div>
     `;
 
-    // SHOW MODAL
-    overlay.style.display = 'flex';
+    // 🔥 SHOW MODAL - COVERS ENTIRE PAGE
+    overlay.style.display = 'flex !important';
     overlay.classList.add('open');
-    console.log('✅ Modal opened!');
+    document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+    console.log('✅ Full page modal opened!');
 
- // --- IMAGE UPLOAD ---
+    // --- IMAGE UPLOAD ---
     const uploadContainer = document.getElementById('imageUploadContainer');
     const fileInput = document.getElementById('imageInput');
     const previewDiv = document.getElementById('imagePreview');
@@ -811,6 +812,7 @@ function openProductModal(product = null) {
             
             overlay.classList.remove('open');
             overlay.style.display = 'none';
+            document.body.style.overflow = '';
         };
     }
 
@@ -818,17 +820,19 @@ function openProductModal(product = null) {
     document.getElementById('modalCloseBtn').onclick = () => {
         overlay.classList.remove('open');
         overlay.style.display = 'none';
+        document.body.style.overflow = '';
     };
     overlay.onclick = (e) => {
         if (e.target === overlay) {
             overlay.classList.remove('open');
             overlay.style.display = 'none';
+            document.body.style.overflow = '';
         }
     };
 }
 
 // ============================================
-// 🔥 CATEGORY MODAL
+// 🔥 CATEGORY MODAL - FULL PAGE VERSION
 // ============================================
 function openCategoryModal(category = null) {
     console.log('📂 Opening category modal...', category ? 'Edit' : 'Add');
@@ -879,11 +883,12 @@ function openCategoryModal(category = null) {
             <select id="cIcon">${iconOptions}</select>
         </div>
     `;
-    
-    // SHOW MODAL
-    overlay.style.display = 'flex';
+
+  // 🔥 SHOW MODAL - COVERS ENTIRE PAGE
+    overlay.style.display = 'flex !important';
     overlay.classList.add('open');
-    console.log('✅ Category modal opened!');
+    document.body.style.overflow = 'hidden';
+    console.log('✅ Full page category modal opened!');
     
     // --- FORM SUBMIT ---
     if (form) {
@@ -935,6 +940,7 @@ function openCategoryModal(category = null) {
             
             overlay.classList.remove('open');
             overlay.style.display = 'none';
+            document.body.style.overflow = '';
         };
     }
     
@@ -942,11 +948,13 @@ function openCategoryModal(category = null) {
     document.getElementById('modalCloseBtn').onclick = () => {
         overlay.classList.remove('open');
         overlay.style.display = 'none';
+        document.body.style.overflow = '';
     };
     overlay.onclick = (e) => {
         if (e.target === overlay) {
             overlay.classList.remove('open');
             overlay.style.display = 'none';
+            document.body.style.overflow = '';
         }
     };
 }

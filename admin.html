@@ -62,57 +62,66 @@
         .admin-table .actions .del-btn:hover { background: #e74c3c; color: white; }
         .admin-table .badge { display: inline-block; padding: 2px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; background: rgba(201,168,76,0.12); color: #a8892e; }
 
-        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 99999; display: flex; flex-direction: column; gap: 10px; }
         .toast { padding: 14px 24px; background: #1a1410; color: white; border-radius: 8px; box-shadow: 0 16px 48px rgba(26,20,16,0.20); font-size: 14px; font-weight: 500; animation: slideUp 0.4s ease; display: flex; align-items: center; gap: 12px; min-width: 240px; border-left: 4px solid #c9a84c; }
         .toast.success { border-left-color: #4caf50; }
         .toast.error { border-left-color: #e74c3c; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 
         /* ============================================
-           🔥 MODAL STYLES - FIXED
+           🔥 FULL PAGE MODAL - GUARANTEED TO SHOW
            ============================================ */
         .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(6px);
-            z-index: 9999;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            background: rgba(0, 0, 0, 0.7) !important;
+            backdrop-filter: blur(8px) !important;
+            -webkit-backdrop-filter: blur(8px) !important;
+            z-index: 999999 !important;
+            display: none !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 20px !important;
+            margin: 0 !important;
+            position: fixed !important;
         }
         .modal-overlay.open {
             display: flex !important;
         }
         .modal-content {
             background: white;
-            border-radius: 16px;
-            max-width: 600px;
+            border-radius: 20px;
+            max-width: 650px;
             width: 100%;
             max-height: 90vh;
             overflow-y: auto;
             padding: 40px;
             position: relative;
-            animation: modalIn 0.3s ease;
+            animation: modalIn 0.4s ease;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+            margin: 20px;
         }
         @keyframes modalIn {
-            from { transform: scale(0.9) translateY(20px); opacity: 0; }
+            from { transform: scale(0.8) translateY(40px); opacity: 0; }
             to { transform: scale(1) translateY(0); opacity: 1; }
         }
         .modal-content .close-modal {
-            position: absolute;
-            top: 16px;
-            right: 20px;
+            position: sticky;
+            top: 0;
+            float: right;
             background: none;
             border: none;
-            font-size: 24px;
+            font-size: 28px;
             color: #8a7e7a;
             cursor: pointer;
             transition: all 0.3s;
+            padding: 8px;
+            z-index: 10;
         }
         .modal-content .close-modal:hover {
             color: #1a1410;
@@ -120,8 +129,10 @@
         }
         .modal-content h3 {
             font-family: 'Playfair Display', serif;
-            font-size: 26px;
-            margin-bottom: 16px;
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: #1a1410;
+            clear: both;
         }
         .modal-content .form-group {
             margin-bottom: 18px;
@@ -149,6 +160,7 @@
         .modal-content .form-group textarea:focus {
             border-color: #c9a84c;
             box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
+            outline: none;
         }
         .modal-content .form-group textarea {
             resize: vertical;
@@ -166,7 +178,7 @@
             padding: 14px 34px;
             border-radius: 50px;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 16px;
             cursor: pointer;
             transition: all 0.3s;
             width: 100%;
@@ -178,21 +190,49 @@
         .modal-content .btn-primary:hover {
             background: #a8892e;
             transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(201,168,76,0.3);
         }
         .modal-content .btn-primary:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
+        }
+        .modal-content .btn-secondary {
+            background: #e8e0da;
+            color: #2c241e;
+            border: none;
+            padding: 14px 34px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .modal-content .btn-secondary:hover {
+            background: #d5cdc5;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .modal-actions .btn-primary {
+            flex: 1;
         }
 
         .image-upload-container {
             border: 2px dashed #e8e0da;
-            border-radius: 8px;
-            padding: 20px;
+            border-radius: 12px;
+            padding: 24px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s;
             position: relative;
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .image-upload-container:hover {
             border-color: #c9a84c;
@@ -226,13 +266,14 @@
             color: white;
             border: none;
             border-radius: 50%;
-            width: 28px;
-            height: 28px;
+            width: 32px;
+            height: 32px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 16px;
             display: none;
             align-items: center;
             justify-content: center;
+            z-index: 5;
         }
         .image-upload-container.has-image .remove-image {
             display: flex;
@@ -240,6 +281,7 @@
         .image-upload-container .upload-progress {
             display: none;
             margin-top: 10px;
+            width: 100%;
         }
         .image-upload-container .upload-progress.active {
             display: block;
@@ -263,7 +305,6 @@
             margin-top: 4px;
         }
 
-        /* Search input */
         .search-input {
             flex: 1;
             min-width: 200px;
@@ -286,17 +327,20 @@
             .admin-sidebar .menu-item { justify-content: center; padding: 16px; }
             .admin-content { padding: 16px; }
             .admin-stats { grid-template-columns: 1fr 1fr; }
-            .modal-content { padding: 24px; }
+            .modal-content { padding: 24px; margin: 10px; max-height: 95vh; }
             .modal-content .form-row { grid-template-columns: 1fr; }
             .admin-header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
             .admin-header h2 { font-size: 16px; }
             .admin-table { font-size: 12px; }
             .admin-table th, .admin-table td { padding: 8px 10px; }
+            .modal-actions { flex-direction: column; }
         }
         @media (max-width: 480px) {
             .admin-header h2 { font-size: 14px; }
             .admin-lang-currency select { font-size: 10px; padding: 2px 6px; }
             .admin-table-wrap .table-header .add-btn { font-size: 11px; padding: 6px 12px; }
+            .modal-content { padding: 16px; }
+            .modal-content h3 { font-size: 20px; }
         }
     </style>
 </head>
@@ -334,7 +378,7 @@
     </div>
 
     <!-- ============================================
-    🔥 MODAL - ALWAYS IN HTML
+    🔥 FULL PAGE MODAL - COVERS EVERYTHING
     ============================================ -->
     <div class="modal-overlay" id="modalOverlay">
         <div class="modal-content" id="modalContent">
@@ -342,9 +386,11 @@
             <h3 id="modalTitle">เพิ่มสินค้า</h3>
             <form id="modalForm">
                 <div id="modalBody"></div>
-                <button type="submit" class="btn-primary" id="modalSubmitBtn">
-                    <i class="fas fa-save"></i> บันทึก
-                </button>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary" id="modalSubmitBtn">
+                        <i class="fas fa-save"></i> บันทึก
+                    </button>
+                </div>
             </form>
         </div>
     </div>
