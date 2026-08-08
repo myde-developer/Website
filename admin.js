@@ -39,17 +39,28 @@ function formatPrice(amount) {
 // ============================================
 async function fetchExchangeRate() {
     try {
-        const response = await fetch('https://api.frankfurter.app/latest?from=THB&to=USD');
-        if (!response.ok) throw new Error('Network error');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch('https://api.frankfurter.app/latest?from=THB&to=USD', {
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
         const data = await response.json();
-        if (data.rates && data.rates.USD) {
+        if (data && data.rates && typeof data.rates.USD === 'number') {
             exchangeRate = data.rates.USD;
             rateLastUpdated = Date.now();
-            console.log(`✅ Admin exchange rate: 1 THB = ${exchangeRate} USD`);
+            console.log(`✅ Exchange rate updated: 1 THB = ${exchangeRate} USD`);
             return exchangeRate;
+        } else {
+            throw new Error('Invalid response structure');
         }
-    } catch (e) {
-        console.warn('⚠️ Using fallback exchange rate:', e);
+    } catch (error) {
+        console.warn('⚠️ Exchange rate fetch failed, using fallback:', error.message || error);
+        // Keep using the existing exchangeRate (fallback = 35)
         return exchangeRate;
     }
 }
@@ -71,12 +82,11 @@ function getExchangeRate() {
 const translationCache = {};
 
 async function translateText(text, targetLang = 'th') {
-    if (!text.trim()) return text;
-    // Check cache
+    if (!text || !text.trim()) return text; // ← skip empty
+
     const cacheKey = text + '_' + targetLang;
-    if (translationCache[cacheKey]) {
-        return translationCache[cacheKey];
-    }
+    if (translationCache[cacheKey]) return translationCache[cacheKey];
+
     try {
         const response = await fetch('https://libretranslate.com/translate', {
             method: 'POST',
@@ -88,23 +98,29 @@ async function translateText(text, targetLang = 'th') {
                 format: 'text'
             })
         });
+
+        if (response.status === 429) {
+            // Too many requests – wait and retry once
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return translateText(text, targetLang); // recursive retry (cache will catch it)
+        }
+
         if (!response.ok) {
-            // If rate limited (429) or other error, use fallback
-            console.warn('Translation API error, using fallback:', response.status);
+            console.warn('Translation API error:', response.status);
             toast('⚠️ ' + t('การแปลชั่วคราวไม่พร้อม ใช้ข้อความภาษาอังกฤษ', 'Translation temporarily unavailable, using English'), 'error');
             return text;
         }
+
         const data = await response.json();
         const translated = data.translatedText || text;
-        // Cache the result
         translationCache[cacheKey] = translated;
         return translated;
     } catch (error) {
         console.error('Translation failed:', error);
-        toast('⚠️ ' + t('ไม่สามารถแปลได้ ใช้ข้อความภาษาอังกฤษ', 'Translation failed, using English'), 'error');
-        return text;
+        return text; // Always fallback to original
     }
 }
+
 // ============================================
 // 🔥 IMAGE UPLOAD WITH BETTER ERROR HANDLING
 // ============================================
@@ -118,28 +134,37 @@ async function uploadImage(file) {
             headers: { 'Authorization': `Bearer ${authToken}` },
             body: formData
         });
+
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('Upload error:', errorText);
+            console.error('Upload error response:', errorText);
             // Try to parse JSON error
+            let errorMsg = 'Upload failed';
             try {
                 const errorJson = JSON.parse(errorText);
-                throw new Error(errorJson.error || 'Upload failed');
+                errorMsg = errorJson.error || errorMsg;
             } catch (e) {
-                throw new Error('Upload failed: ' + response.status);
+                errorMsg = `Upload failed (${response.status})`;
             }
+            // If the error mentions Cloudinary config, show a helpful message
+            if (errorMsg.includes('Cloudinary') || errorMsg.includes('cloud_name')) {
+                toast('❌ ' + t('ตรวจสอบการตั้งค่า Cloudinary ใน Render', 'Check Cloudinary settings on Render'), 'error');
+            } else {
+                toast('❌ ' + t('อัปโหลดล้มเหลว: ', 'Upload failed: ') + errorMsg, 'error');
+            }
+            return null;
         }
+
         const data = await response.json();
         if (!data.url) throw new Error('No URL returned');
         toast(t('อัปโหลดรูปภาพสำเร็จ ✅', 'Image uploaded successfully ✅'));
         return data.url;
     } catch (error) {
         console.error('Upload failed:', error);
-        toast('❌ ' + t('อัปโหลดล้มเหลว: ', 'Upload failed: ') + error.message, 'error');
+        toast('❌ ' + t('อัปโหลดรูปภาพล้มเหลว', 'Image upload failed'), 'error');
         return null;
     }
 }
-
 // ============================================
 // 🔥 API HELPER
 // ============================================
@@ -825,42 +850,43 @@ function openProductModal(product = null) {
         });
     }
 
-    // --- AUTO-TRANSLATE ---
-    const translateBtn = document.getElementById('autoTranslateBtn');
-    if (translateBtn) {
-        translateBtn.addEventListener('click', async () => {
-            const nameEn = document.getElementById('pNameEn');
-            const descEn = document.getElementById('pDescEn');
-            if (!nameEn || !descEn) return;
+    // --- AUTO-TRANSLATE BUTTON ---
+const translateBtn = document.getElementById('autoTranslateBtn');
+if (translateBtn) {
+    translateBtn.addEventListener('click', async () => {
+        const nameEn = document.getElementById('pNameEn');
+        const descEn = document.getElementById('pDescEn');
+        if (!nameEn || !descEn) return;
 
-            const nameEnValue = nameEn.value.trim();
-            const descEnValue = descEn.value.trim();
-            if (!nameEnValue && !descEnValue) {
-                toast(t('กรุณากรอกภาษาอังกฤษก่อน', 'Enter English first'), 'error');
-                return;
+        const nameEnValue = nameEn.value.trim();
+        const descEnValue = descEn.value.trim();
+
+        if (!nameEnValue && !descEnValue) {
+            toast(t('กรุณากรอกภาษาอังกฤษก่อน', 'Enter English first'), 'error');
+            return;
+        }
+
+        translateBtn.disabled = true;
+        translateBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังแปล...', 'Translating...')}`;
+
+        try {
+            if (nameEnValue) {
+                const nameTh = await translateText(nameEnValue, 'th');
+                document.getElementById('pNameTh').value = nameTh;
             }
-
-            translateBtn.disabled = true;
-            translateBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังแปล...', 'Translating...')}`;
-
-            try {
-                if (nameEnValue) {
-                    const nameTh = await translateText(nameEnValue, 'th');
-                    document.getElementById('pNameTh').value = nameTh;
-                }
-                if (descEnValue) {
-                    const descTh = await translateText(descEnValue, 'th');
-                    document.getElementById('pDescTh').value = descTh;
-                }
-                toast(t('แปลสำเร็จ ✅', 'Translation successful ✅'));
-            } catch (error) {
-                // already handled in translateText
-            } finally {
-                translateBtn.disabled = false;
-                translateBtn.innerHTML = `<i class="fas fa-language"></i> ${t('แปล', 'Translate')}`;
+            if (descEnValue) {
+                const descTh = await translateText(descEnValue, 'th');
+                document.getElementById('pDescTh').value = descTh;
             }
-        });
-    }
+            toast(t('แปลสำเร็จ ✅', 'Translation successful ✅'));
+        } catch (error) {
+            // already handled in translateText
+        } finally {
+            translateBtn.disabled = false;
+            translateBtn.innerHTML = `<i class="fas fa-language"></i> ${t('แปล', 'Translate')}`;
+        }
+    });
+}
 
     // --- FORM SUBMIT ---
     if (form) {
