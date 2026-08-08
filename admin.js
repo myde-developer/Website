@@ -14,12 +14,8 @@ let adminCurrency = localStorage.getItem('adminCurrency') || 'thb';
 let uploadedImageUrl = null;
 let searchTerm = '';
 
-// --- RESTORE SESSION ---
-if (authToken) {
-    adminLoggedIn = true;
-}
+if (authToken) adminLoggedIn = true;
 
-// --- TRANSLATION HELPER ---
 function t(thText, enText) {
     return adminLang === 'th' ? thText : enText;
 }
@@ -31,7 +27,7 @@ function formatPrice(amount) {
 }
 
 // ============================================
-// 🔥 LIBRETRANSLATE INTEGRATION
+// 🔥 TRANSLATE API
 // ============================================
 async function translateText(text, targetLang = 'th') {
     if (!text.trim()) return text;
@@ -51,13 +47,13 @@ async function translateText(text, targetLang = 'th') {
         return data.translatedText;
     } catch (error) {
         console.error('Translation failed:', error);
-        toast('⚠️ ' + t('ไม่สามารถแปลได้ โปรดลองอีกครั้ง', 'Translation failed, please try again'), 'error');
+        toast('⚠️ ' + t('ไม่สามารถแปลได้', 'Translation failed'), 'error');
         return text;
     }
 }
 
 // ============================================
-// 🔥 SECURE IMAGE UPLOAD VIA BACKEND
+// 🔥 IMAGE UPLOAD
 // ============================================
 async function uploadImage(file) {
     const formData = new FormData();
@@ -66,18 +62,15 @@ async function uploadImage(file) {
     try {
         const response = await fetch(`${API_URL}/upload`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${authToken}`
-            },
+            headers: { 'Authorization': `Bearer ${authToken}` },
             body: formData
         });
-        
         if (!response.ok) throw new Error('Upload failed');
         const data = await response.json();
         return data.url;
     } catch (error) {
         console.error('Upload failed:', error);
-        toast('❌ ' + t('อัปโหลดรูปภาพล้มเหลว', 'Image upload failed'), 'error');
+        toast('❌ ' + t('อัปโหลดล้มเหลว', 'Upload failed'), 'error');
         return null;
     }
 }
@@ -130,7 +123,7 @@ async function loadDataFromDB() {
 }
 
 // ============================================
-// 🔥 AUTH FUNCTIONS
+// 🔥 AUTH
 // ============================================
 async function adminLogin(username, password) {
     try {
@@ -158,92 +151,71 @@ function adminLogout() {
 }
 
 // ============================================
-// 🔥 PRODUCT CRUD OPERATIONS
+// 🔥 PRODUCT CRUD
 // ============================================
 async function addProduct(productData) {
     try {
-        const response = await apiFetch('/products', {
-            method: 'POST',
-            body: JSON.stringify(productData)
-        });
+        const response = await apiFetch('/products', { method: 'POST', body: JSON.stringify(productData) });
         await loadDataFromDB();
         renderAdmin();
-        toast('✅ ' + t('เพิ่มสินค้าเรียบร้อย', 'Product added successfully'));
+        toast('✅ ' + t('เพิ่มสินค้าเรียบร้อย', 'Product added'));
         return response;
     } catch (error) {
-        console.error('Add product error:', error);
-        toast('❌ ' + t('ไม่สามารถเพิ่มสินค้าได้', 'Failed to add product'), 'error');
+        toast('❌ ' + t('ไม่สามารถเพิ่มสินค้าได้', 'Failed to add'), 'error');
         return null;
     }
 }
 
 async function updateProduct(productId, updatedData) {
     try {
-        const response = await apiFetch(`/products/${productId}`, {
-            method: 'PUT',
-            body: JSON.stringify(updatedData)
-        });
+        const response = await apiFetch(`/products/${productId}`, { method: 'PUT', body: JSON.stringify(updatedData) });
         await loadDataFromDB();
         renderAdmin();
-        toast('✅ ' + t('อัปเดตสินค้าเรียบร้อย', 'Product updated successfully'));
+        toast('✅ ' + t('อัปเดตสินค้าเรียบร้อย', 'Product updated'));
         return response;
     } catch (error) {
-        console.error('Update product error:', error);
-        toast('❌ ' + t('ไม่สามารถอัปเดตสินค้าได้', 'Failed to update product'), 'error');
+        toast('❌ ' + t('ไม่สามารถอัปเดตสินค้าได้', 'Failed to update'), 'error');
         return null;
     }
 }
 
 async function deleteProduct(productId) {
     try {
-        const confirmDelete = confirm(t('ลบสินค้านี้ใช่หรือไม่?', 'Delete this product?'));
-        if (!confirmDelete) return;
-        
-        await apiFetch(`/products/${productId}`, {
-            method: 'DELETE'
-        });
+        if (!confirm(t('ลบสินค้านี้ใช่หรือไม่?', 'Delete this product?'))) return;
+        await apiFetch(`/products/${productId}`, { method: 'DELETE' });
         await loadDataFromDB();
         renderAdmin();
-        toast('✅ ' + t('ลบสินค้าเรียบร้อย', 'Product deleted successfully'));
+        toast('✅ ' + t('ลบสินค้าเรียบร้อย', 'Product deleted'));
     } catch (error) {
-        console.error('Delete product error:', error);
-        toast('❌ ' + t('ไม่สามารถลบสินค้าได้', 'Failed to delete product'), 'error');
+        toast('❌ ' + t('ไม่สามารถลบสินค้าได้', 'Failed to delete'), 'error');
     }
 }
 
 // ============================================
-// 🔥 CATEGORY CRUD OPERATIONS
+// 🔥 CATEGORY CRUD
 // ============================================
 async function addCategory(categoryData) {
     try {
-        const response = await apiFetch('/categories', {
-            method: 'POST',
-            body: JSON.stringify(categoryData)
-        });
+        const response = await apiFetch('/categories', { method: 'POST', body: JSON.stringify(categoryData) });
         await loadDataFromDB();
         renderAdmin();
-        toast('✅ ' + t('เพิ่มหมวดหมู่เรียบร้อย', 'Category added successfully'));
+        toast('✅ ' + t('เพิ่มหมวดหมู่เรียบร้อย', 'Category added'));
         return response;
     } catch (error) {
-        console.error('Add category error:', error);
-        toast('❌ ' + t('ไม่สามารถเพิ่มหมวดหมู่ได้', 'Failed to add category'), 'error');
+        toast('❌ ' + t('ไม่สามารถเพิ่มหมวดหมู่ได้', 'Failed to add'), 'error');
         return null;
     }
 }
 
 async function updateCategory(categoryId, updatedData) {
     try {
-        const response = await apiFetch(`/categories/${categoryId}`, {
-            method: 'PUT',
-            body: JSON.stringify(updatedData)
-        });
+        const response = await apiFetch(`/categories/${categoryId}`, { method: 'PUT', body: JSON.stringify(updatedData) });
         await loadDataFromDB();
         renderAdmin();
-        toast('✅ ' + t('อัปเดตหมวดหมู่เรียบร้อย', 'Category updated successfully'));
+        toast('✅ ' + t('อัปเดตหมวดหมู่เรียบร้อย', 'Category updated'));
         return response;
     } catch (error) {
-        console.error('Update category error:', error);
-        toast('❌ ' + t('ไม่สามารถอัปเดตหมวดหมู่ได้', 'Failed to update category'), 'error');
+        toast('❌ ' + t('ไม่สามารถอัปเดตหมวดหมู่ได้', 'Failed to update'), 'error');
         return null;
     }
 }
@@ -252,28 +224,19 @@ async function deleteCategory(categoryId) {
     try {
         const hasProducts = appData.products.some(p => p.category === categoryId);
         if (hasProducts) {
-            toast('❌ ' + t('ไม่สามารถลบได้เนื่องจากมีสินค้าอยู่ในหมวดหมู่นี้', 'Cannot delete category with products'), 'error');
+            toast('❌ ' + t('มีสินค้าอยู่ในหมวดหมู่นี้', 'Category has products'), 'error');
             return;
         }
-        
-        const confirmDelete = confirm(t('ลบหมวดหมู่นี้ใช่หรือไม่?', 'Delete this category?'));
-        if (!confirmDelete) return;
-        
-        await apiFetch(`/categories/${categoryId}`, {
-            method: 'DELETE'
-        });
+        if (!confirm(t('ลบหมวดหมู่นี้ใช่หรือไม่?', 'Delete this category?'))) return;
+        await apiFetch(`/categories/${categoryId}`, { method: 'DELETE' });
         await loadDataFromDB();
         renderAdmin();
-        toast('✅ ' + t('ลบหมวดหมู่เรียบร้อย', 'Category deleted successfully'));
+        toast('✅ ' + t('ลบหมวดหมู่เรียบร้อย', 'Category deleted'));
     } catch (error) {
-        console.error('Delete category error:', error);
-        toast('❌ ' + t('ไม่สามารถลบหมวดหมู่ได้', 'Failed to delete category'), 'error');
+        toast('❌ ' + t('ไม่สามารถลบหมวดหมู่ได้', 'Failed to delete'), 'error');
     }
 }
 
-// ============================================
-// 🔥 UTILITY FUNCTIONS
-// ============================================
 function getCategoryName(catId) {
     const cat = appData.categories.find(c => c.id === catId);
     return cat ? (adminLang === 'th' ? cat.th : cat.en) : catId;
@@ -290,7 +253,7 @@ function toast(message, type = 'success') {
 }
 
 // ============================================
-// 🔥 RENDER ADMIN FUNCTIONS
+// 🔥 RENDER FUNCTIONS
 // ============================================
 function renderAdmin() {
     console.log('🔄 renderAdmin() called, loggedIn:', adminLoggedIn);
@@ -333,15 +296,10 @@ function renderLogin() {
     `;
     
     document.getElementById('adminLoginBtn').addEventListener('click', () => {
-        const username = document.getElementById('adminUser').value;
-        const password = document.getElementById('adminPass').value;
-        adminLogin(username, password);
+        adminLogin(document.getElementById('adminUser').value, document.getElementById('adminPass').value);
     });
-    
     document.getElementById('adminPass').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            document.getElementById('adminLoginBtn').click();
-        }
+        if (e.key === 'Enter') document.getElementById('adminLoginBtn').click();
     });
 }
 
@@ -381,8 +339,7 @@ function renderProductsAdmin(content) {
                 <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%;">
                     <h4><i class="fas fa-box" style="color:#c9a84c;"></i> ${t('รายการสินค้า', 'Products')}</h4>
                     <div style="flex:1;min-width:200px;display:flex;gap:8px;">
-                        <input type="text" id="productSearch" placeholder="${t('ค้นหาสินค้า...', 'Search products...')}" 
-                               style="flex:1;padding:8px 16px;border:1px solid #e8e0da;border-radius:8px;background:#faf6f0;">
+                        <input type="text" id="productSearch" placeholder="${t('ค้นหาสินค้า...', 'Search products...')}" class="search-input">
                         <button class="add-btn" id="adminAddProductBtn" style="white-space:nowrap;">
                             <i class="fas fa-plus"></i> ${t('เพิ่มสินค้า', 'Add Product')}
                         </button>
@@ -434,37 +391,28 @@ function renderProductsAdmin(content) {
     html += `</tbody></table></div>`;
     content.innerHTML = html;
     
-    // --- SEARCH HANDLER ---
-    const searchInput = document.getElementById('productSearch');
-    if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-            searchTerm = e.target.value;
-            renderProductsAdmin(content);
-        });
-    }
+    // Search handler
+    document.getElementById('productSearch')?.addEventListener('input', (e) => {
+        searchTerm = e.target.value;
+        renderProductsAdmin(content);
+    });
     
-    // --- ADD PRODUCT BUTTON ---
-    const addBtn = document.getElementById('adminAddProductBtn');
-    if (addBtn) {
-        addBtn.addEventListener('click', (e) => {
-            console.log('🔵 Add Product button clicked!');
-            openProductModal();
-        });
-    }
+    // Add Product button
+    document.getElementById('adminAddProductBtn')?.addEventListener('click', () => {
+        console.log('🟢 Add Product clicked');
+        openProductModal();
+    });
     
-    // --- EDIT BUTTONS ---
+    // Edit buttons
     content.querySelectorAll('.edit-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = parseInt(btn.dataset.id);
             const product = appData.products.find(p => p.id === id);
-            if (product) {
-                console.log('🟡 Edit product clicked:', id);
-                openProductModal(product);
-            }
+            if (product) openProductModal(product);
         });
     });
     
-    // --- DELETE BUTTONS ---
+    // Delete buttons
     content.querySelectorAll('.del-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = parseInt(btn.dataset.id);
@@ -522,28 +470,22 @@ function renderCategoriesAdmin(content) {
     html += `</tbody></table></div>`;
     content.innerHTML = html;
     
-    // --- ADD CATEGORY BUTTON ---
-    const addBtn = document.getElementById('adminAddCategoryBtn');
-    if (addBtn) {
-        addBtn.addEventListener('click', () => {
-            console.log('🟢 Add Category button clicked!');
-            openCategoryModal();
-        });
-    }
+    // Add Category button
+    document.getElementById('adminAddCategoryBtn')?.addEventListener('click', () => {
+        console.log('🟢 Add Category clicked');
+        openCategoryModal();
+    });
     
-    // --- EDIT BUTTONS ---
+    // Edit buttons
     content.querySelectorAll('.edit-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const catId = btn.dataset.id;
             const category = appData.categories.find(c => c.id === catId);
-            if (category) {
-                console.log('🟡 Edit category clicked:', catId);
-                openCategoryModal(category);
-            }
+            if (category) openCategoryModal(category);
         });
     });
     
-    // --- DELETE BUTTONS ---
+    // Delete buttons
     content.querySelectorAll('.del-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', () => {
             const catId = btn.dataset.id;
@@ -598,10 +540,10 @@ function renderOrdersAdmin(content) {
 }
 
 // ============================================
-// 🔥 PRODUCT MODAL - FIXED
+// 🔥 PRODUCT MODAL
 // ============================================
 function openProductModal(product = null) {
-    console.log('📦 Opening product modal...', product ? 'Edit mode' : 'Add mode');
+    console.log('📦 Opening product modal...', product ? 'Edit' : 'Add');
     
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -609,8 +551,8 @@ function openProductModal(product = null) {
     const submitBtn = document.getElementById('modalSubmitBtn');
     const form = document.getElementById('modalForm');
     
-    if (!overlay || !body) {
-        console.error('❌ Modal elements not found! Check IDs in HTML.');
+    if (!overlay) {
+        console.error('❌ Modal overlay not found!');
         toast('❌ ไม่พบโมดัล', 'error');
         return;
     }
@@ -644,11 +586,11 @@ function openProductModal(product = null) {
             <label>${t('ชื่อภาษาอังกฤษ', 'English Name')}</label>
             <div style="display:flex;gap:8px;align-items:center;">
                 <input type="text" id="pNameEn" value="${product ? product.name_en : ''}" required style="flex:1;">
-                <button type="button" class="btn-primary" id="autoTranslateBtn" style="padding:8px 16px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">
+                <button type="button" class="btn-primary" id="autoTranslateBtn" style="padding:8px 16px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;width:auto;">
                     <i class="fas fa-language"></i> ${t('แปล', 'Translate')}
                 </button>
             </div>
-            <small style="color:#8a7e7a;">${t('ป้อนภาษาอังกฤษ แล้วกดปุ่มเพื่อแปลเป็นไทย', 'Enter English and click button to translate to Thai')}</small>
+            <small style="color:#8a7e7a;">${t('ป้อนภาษาอังกฤษ แล้วกดปุ่มเพื่อแปลเป็นไทย', 'Enter English and click Translate')}</small>
         </div>
         
         <div class="form-group">
@@ -694,12 +636,12 @@ function openProductModal(product = null) {
         </div>
     `;
 
-    // Show the modal
+    // SHOW MODAL
     overlay.style.display = 'flex';
     overlay.classList.add('open');
     console.log('✅ Modal opened!');
 
-// --- IMAGE UPLOAD HANDLERS ---
+ // --- IMAGE UPLOAD ---
     const uploadContainer = document.getElementById('imageUploadContainer');
     const fileInput = document.getElementById('imageInput');
     const previewDiv = document.getElementById('imagePreview');
@@ -714,12 +656,10 @@ function openProductModal(product = null) {
             uploadContainer.style.borderColor = '#c9a84c';
             uploadContainer.style.background = 'rgba(201,168,76,0.08)';
         });
-
         uploadContainer.addEventListener('dragleave', () => {
             uploadContainer.style.borderColor = '';
             uploadContainer.style.background = '';
         });
-
         uploadContainer.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadContainer.style.borderColor = '';
@@ -729,7 +669,6 @@ function openProductModal(product = null) {
                 fileInput.dispatchEvent(new Event('change'));
             }
         });
-
         uploadContainer.addEventListener('click', (e) => {
             if (e.target === removeBtn || e.target.closest('.remove-image')) return;
             fileInput.click();
@@ -741,7 +680,7 @@ function openProductModal(product = null) {
             const file = e.target.files[0];
             if (!file) return;
             if (!file.type.startsWith('image/')) {
-                toast(t('กรุณาเลือกรูปภาพเท่านั้น', 'Please select an image file'), 'error');
+                toast(t('กรุณาเลือกรูปภาพเท่านั้น', 'Please select an image'), 'error');
                 return;
             }
             if (file.size > 5 * 1024 * 1024) {
@@ -765,7 +704,7 @@ function openProductModal(product = null) {
                 }
                 if (removeBtn) removeBtn.style.display = 'flex';
                 if (uploadContainer) uploadContainer.classList.add('has-image');
-                toast(t('อัปโหลดรูปภาพสำเร็จ ✅', 'Image uploaded successfully ✅'));
+                toast(t('อัปโหลดสำเร็จ ✅', 'Upload successful ✅'));
             }
             
             if (progressDiv) progressDiv.classList.remove('active');
@@ -786,20 +725,18 @@ function openProductModal(product = null) {
         });
     }
 
-    // --- AUTO-TRANSLATE BUTTON ---
+    // --- AUTO-TRANSLATE ---
     const translateBtn = document.getElementById('autoTranslateBtn');
     if (translateBtn) {
         translateBtn.addEventListener('click', async () => {
             const nameEn = document.getElementById('pNameEn');
             const descEn = document.getElementById('pDescEn');
-            
             if (!nameEn || !descEn) return;
             
             const nameEnValue = nameEn.value.trim();
             const descEnValue = descEn.value.trim();
-            
             if (!nameEnValue && !descEnValue) {
-                toast(t('กรุณากรอกข้อมูลภาษาอังกฤษก่อน', 'Please enter English text first'), 'error');
+                toast(t('กรุณากรอกภาษาอังกฤษก่อน', 'Enter English first'), 'error');
                 return;
             }
 
@@ -809,13 +746,11 @@ function openProductModal(product = null) {
             try {
                 if (nameEnValue) {
                     const nameTh = await translateText(nameEnValue, 'th');
-                    const nameThInput = document.getElementById('pNameTh');
-                    if (nameThInput) nameThInput.value = nameTh;
+                    document.getElementById('pNameTh').value = nameTh;
                 }
                 if (descEnValue) {
                     const descTh = await translateText(descEnValue, 'th');
-                    const descThInput = document.getElementById('pDescTh');
-                    if (descThInput) descThInput.value = descTh;
+                    document.getElementById('pDescTh').value = descTh;
                 }
                 toast(t('แปลสำเร็จ ✅', 'Translation successful ✅'));
             } catch (error) {
@@ -841,7 +776,7 @@ function openProductModal(product = null) {
             const sizes = document.getElementById('pSizes');
             
             if (!nameTh || !nameEn || !category || !price) {
-                toast(t('กรุณากรอกข้อมูลให้ครบถ้วน', 'Please fill all required fields'), 'error');
+                toast(t('กรุณากรอกข้อมูลให้ครบถ้วน', 'Please fill all fields'), 'error');
                 return;
             }
             
@@ -861,10 +796,10 @@ function openProductModal(product = null) {
                 submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังบันทึก...', 'Saving...')}`;
             }
             
-            if (editingItem) { 
-                await updateProduct(editingItem.id, { ...editingItem, ...payload }); 
-            } else { 
-                await addProduct(payload); 
+            if (editingItem) {
+                await updateProduct(editingItem.id, { ...editingItem, ...payload });
+            } else {
+                await addProduct(payload);
             }
             
             if (submitBtn) {
@@ -874,39 +809,29 @@ function openProductModal(product = null) {
                     `<i class="fas fa-plus"></i> ${t('บันทึก', 'Save')}`;
             }
             
-            if (overlay) {
-                overlay.classList.remove('open');
-                overlay.style.display = 'none';
-            }
+            overlay.classList.remove('open');
+            overlay.style.display = 'none';
         };
     }
 
     // --- CLOSE MODAL ---
-    const closeBtn = document.getElementById('modalCloseBtn');
-    if (closeBtn) {
-        closeBtn.onclick = () => {
-            if (overlay) {
-                overlay.classList.remove('open');
-                overlay.style.display = 'none';
-            }
-        };
-    }
-    
-    if (overlay) {
-        overlay.onclick = (e) => {
-            if (e.target === overlay) {
-                overlay.classList.remove('open');
-                overlay.style.display = 'none';
-            }
-        };
-    }
+    document.getElementById('modalCloseBtn').onclick = () => {
+        overlay.classList.remove('open');
+        overlay.style.display = 'none';
+    };
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.classList.remove('open');
+            overlay.style.display = 'none';
+        }
+    };
 }
 
 // ============================================
-// 🔥 CATEGORY MODAL - FIXED
+// 🔥 CATEGORY MODAL
 // ============================================
 function openCategoryModal(category = null) {
-    console.log('📂 Opening category modal...', category ? 'Edit mode' : 'Add mode');
+    console.log('📂 Opening category modal...', category ? 'Edit' : 'Add');
     
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -914,8 +839,8 @@ function openCategoryModal(category = null) {
     const submitBtn = document.getElementById('modalSubmitBtn');
     const form = document.getElementById('modalForm');
     
-    if (!overlay || !body) {
-        console.error('❌ Modal elements not found! Check IDs in HTML.');
+    if (!overlay) {
+        console.error('❌ Modal overlay not found!');
         toast('❌ ไม่พบโมดัล', 'error');
         return;
     }
@@ -955,7 +880,7 @@ function openCategoryModal(category = null) {
         </div>
     `;
     
-    // Show the modal
+    // SHOW MODAL
     overlay.style.display = 'flex';
     overlay.classList.add('open');
     console.log('✅ Category modal opened!');
@@ -1008,32 +933,22 @@ function openCategoryModal(category = null) {
                     `<i class="fas fa-plus"></i> ${t('บันทึก', 'Save')}`;
             }
             
-            if (overlay) {
-                overlay.classList.remove('open');
-                overlay.style.display = 'none';
-            }
+            overlay.classList.remove('open');
+            overlay.style.display = 'none';
         };
     }
     
     // --- CLOSE MODAL ---
-    const closeBtn = document.getElementById('modalCloseBtn');
-    if (closeBtn) {
-        closeBtn.onclick = () => {
-            if (overlay) {
-                overlay.classList.remove('open');
-                overlay.style.display = 'none';
-            }
-        };
-    }
-    
-    if (overlay) {
-        overlay.onclick = (e) => {
-            if (e.target === overlay) {
-                overlay.classList.remove('open');
-                overlay.style.display = 'none';
-            }
-        };
-    }
+    document.getElementById('modalCloseBtn').onclick = () => {
+        overlay.classList.remove('open');
+        overlay.style.display = 'none';
+    };
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.classList.remove('open');
+            overlay.style.display = 'none';
+        }
+    };
 }
 
 // ============================================
@@ -1053,33 +968,24 @@ document.querySelectorAll('.admin-sidebar .menu-item').forEach(el => {
 });
 
 // ============================================
-// 🔥 LANGUAGE & CURRENCY DROPDOWN EVENTS
+// 🔥 LANGUAGE & CURRENCY
 // ============================================
-const langSelect = document.getElementById('adminLangSelect');
-if (langSelect) {
-    langSelect.addEventListener('change', (e) => {
-        adminLang = e.target.value;
-        localStorage.setItem('adminLang', adminLang);
-        renderAdmin();
-    });
-}
+document.getElementById('adminLangSelect')?.addEventListener('change', (e) => {
+    adminLang = e.target.value;
+    localStorage.setItem('adminLang', adminLang);
+    renderAdmin();
+});
 
-const currencySelect = document.getElementById('adminCurrencySelect');
-if (currencySelect) {
-    currencySelect.addEventListener('change', (e) => {
-        adminCurrency = e.target.value;
-        localStorage.setItem('adminCurrency', adminCurrency);
-        renderAdmin();
-    });
-}
+document.getElementById('adminCurrencySelect')?.addEventListener('change', (e) => {
+    adminCurrency = e.target.value;
+    localStorage.setItem('adminCurrency', adminCurrency);
+    renderAdmin();
+});
 
 // ============================================
 // 🔥 LOGOUT
 // ============================================
-const logoutBtn = document.getElementById('adminLogoutBtn');
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', adminLogout);
-}
+document.getElementById('adminLogoutBtn')?.addEventListener('click', adminLogout);
 
 // ============================================
 // 🔥 INIT
@@ -1088,7 +994,7 @@ if (logoutBtn) {
     console.log('🚀 Admin panel initializing...');
     await loadDataFromDB();
     renderAdmin();
-    console.log('✅ Admin panel ready – API:', API_URL);
+    console.log('✅ Admin panel ready!');
     console.log('📦 Products:', appData.products.length);
     console.log('📂 Categories:', appData.categories.length);
     console.log('📋 Orders:', appData.orders.length);
