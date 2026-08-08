@@ -7,9 +7,9 @@ const API_URL = 'https://website-219o.onrender.com/api';
 // 🔥 CLOUDINARY CONFIG - Replace with your credentials
 // ============================================
 const CLOUDINARY_CONFIG = {
-    cloudName: 'Root',        // Replace with your Cloudinary cloud name
-    uploadPreset: 'a3 images',  // Replace with your upload preset
-    apiKey: '726651957123698'              // Replace with your API key (optional for unsigned uploads)
+    cloudName: 'Root',        // ← Replace with your actual Cloudinary cloud name
+    uploadPreset: 'a3 images',  // ← Replace with your actual upload preset
+    apiKey: '726651957123698'              // ← Replace with your actual API key
 };
 
 // --- STATE ---
@@ -181,8 +181,8 @@ function renderLogin() {
     content.innerHTML = `<div class="admin-login"><div class="admin-login-box">
         <h3><i class="fas fa-crown" style="color:var(--gold);"></i> Admin</h3>
         <p class="sub">${t('เข้าสู่ระบบแผงควบคุม', 'Admin Login')}</p>
-        <input type="text" id="adminUser" placeholder="Input Name or Email">
-        <input type="password" id="adminPass" placeholder="Input Password">
+        <input type="text" id="adminUser" placeholder="${t('ชื่อผู้ใช้', 'Username')}" placeholder="Input Name or Email">
+        <input type="password" id="adminPass" placeholder="${t('รหัสผ่าน', 'Password')}" placeholder="Input Password">
         <button class="login-btn" id="adminLoginBtn">${t('เข้าสู่ระบบ', 'Login')}</button>
     </div></div>`;
     document.getElementById('adminLoginBtn').addEventListener('click', () => {
