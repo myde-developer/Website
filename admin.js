@@ -94,7 +94,7 @@ async function apiFetch(endpoint, options = {}) {
 }
 
 // ============================================
-// 🔥 LOAD DATA FROM DATABASE
+// 🔥 LOAD DATA
 // ============================================
 function showLoading() {
     const content = document.getElementById('adminContent');
@@ -102,8 +102,8 @@ function showLoading() {
         content.innerHTML = `
             <div style="display:flex;justify-content:center;align-items:center;height:200px;">
                 <div style="text-align:center;">
-                    <i class="fas fa-spinner fa-spin" style="font-size:40px;color:var(--gold);"></i>
-                    <p style="margin-top:10px;color:var(--gray);">${t('กำลังโหลด...', 'Loading...')}</p>
+                    <i class="fas fa-spinner fa-spin" style="font-size:40px;color:#c9a84c;"></i>
+                    <p style="margin-top:10px;color:#8a7e7a;">${t('กำลังโหลด...', 'Loading...')}</p>
                 </div>
             </div>
         `;
@@ -293,6 +293,8 @@ function toast(message, type = 'success') {
 // 🔥 RENDER ADMIN FUNCTIONS
 // ============================================
 function renderAdmin() {
+    console.log('🔄 renderAdmin() called, loggedIn:', adminLoggedIn);
+    
     if (!adminLoggedIn) {
         renderLogin();
         return;
@@ -321,10 +323,10 @@ function renderLogin() {
     content.innerHTML = `
         <div class="admin-login">
             <div class="admin-login-box">
-                <h3><i class="fas fa-crown" style="color:var(--gold);"></i> Admin</h3>
+                <h3><i class="fas fa-crown" style="color:#c9a84c;"></i> Admin</h3>
                 <p class="sub">${t('เข้าสู่ระบบแผงควบคุม', 'Admin Login')}</p>
-                <input type="text" id="adminUser" placeholder="${t('ชื่อผู้ใช้', 'Username')}" placeholder="Input Name and Email">
-                <input type="password" id="adminPass" placeholder="${t('รหัสผ่าน', 'Password')}" placeholder="Input Password">
+                <input type="text" id="adminUser" placeholder="${t('ชื่อผู้ใช้', 'Username')}" value="admin">
+                <input type="password" id="adminPass" placeholder="${t('รหัสผ่าน', 'Password')}" value="admin123">
                 <button class="login-btn" id="adminLoginBtn">${t('เข้าสู่ระบบ', 'Login')}</button>
             </div>
         </div>
@@ -355,9 +357,9 @@ function renderDashboard(content) {
             <div class="admin-stat"><div class="number">${totalOrders}</div><div class="label">${t('คำสั่งซื้อ', 'Orders')}</div></div>
             <div class="admin-stat"><div class="number">${formatPrice(totalRevenue)}</div><div class="label">${t('ยอดขายรวม', 'Revenue')}</div></div>
         </div>
-        <div style="background:white;border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);">
+        <div style="background:white;border-radius:16px;padding:24px;box-shadow:0 8px 32px rgba(26,20,16,0.12);">
             <h4 style="margin-bottom:8px;">${t('ยินดีต้อนรับสู่แผงควบคุม', 'Welcome to Admin Panel')}</h4>
-            <p style="color:var(--gray);font-size:14px;">${t('จัดการสินค้า หมวดหมู่ และคำสั่งซื้อจากเมนูด้านซ้าย', 'Manage products, categories, and orders from the left menu.')}</p>
+            <p style="color:#8a7e7a;font-size:14px;">${t('จัดการสินค้า หมวดหมู่ และคำสั่งซื้อจากเมนูด้านซ้าย', 'Manage products, categories, and orders from the left menu.')}</p>
         </div>
     `;
 }
@@ -377,10 +379,10 @@ function renderProductsAdmin(content) {
         <div class="admin-table-wrap">
             <div class="table-header">
                 <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%;">
-                    <h4><i class="fas fa-box" style="color:var(--gold);"></i> ${t('รายการสินค้า', 'Products')}</h4>
+                    <h4><i class="fas fa-box" style="color:#c9a84c;"></i> ${t('รายการสินค้า', 'Products')}</h4>
                     <div style="flex:1;min-width:200px;display:flex;gap:8px;">
                         <input type="text" id="productSearch" placeholder="${t('ค้นหาสินค้า...', 'Search products...')}" 
-                               style="flex:1;padding:8px 16px;border:1px solid var(--light-gray);border-radius:var(--radius-sm);background:var(--cream);">
+                               style="flex:1;padding:8px 16px;border:1px solid #e8e0da;border-radius:8px;background:#faf6f0;">
                         <button class="add-btn" id="adminAddProductBtn" style="white-space:nowrap;">
                             <i class="fas fa-plus"></i> ${t('เพิ่มสินค้า', 'Add Product')}
                         </button>
@@ -402,7 +404,7 @@ function renderProductsAdmin(content) {
     `;
     
     if (filteredProducts.length === 0) {
-        html += `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--gray);">
+        html += `<tr><td colspan="6" style="text-align:center;padding:40px;color:#8a7e7a;">
             ${searchTerm ? t('ไม่พบสินค้าที่ค้นหา', 'No products found') : t('ยังไม่มีสินค้า', 'No products')}
         </td></tr>`;
     } else {
@@ -444,8 +446,8 @@ function renderProductsAdmin(content) {
     // --- ADD PRODUCT BUTTON ---
     const addBtn = document.getElementById('adminAddProductBtn');
     if (addBtn) {
-        addBtn.addEventListener('click', () => {
-            console.log('Add Product button clicked!');
+        addBtn.addEventListener('click', (e) => {
+            console.log('🔵 Add Product button clicked!');
             openProductModal();
         });
     }
@@ -455,7 +457,10 @@ function renderProductsAdmin(content) {
         btn.addEventListener('click', () => {
             const id = parseInt(btn.dataset.id);
             const product = appData.products.find(p => p.id === id);
-            if (product) openProductModal(product);
+            if (product) {
+                console.log('🟡 Edit product clicked:', id);
+                openProductModal(product);
+            }
         });
     });
     
@@ -473,7 +478,7 @@ function renderCategoriesAdmin(content) {
         <div class="admin-table-wrap">
             <div class="table-header">
                 <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;width:100%;">
-                    <h4><i class="fas fa-tags" style="color:var(--gold);"></i> ${t('หมวดหมู่', 'Categories')}</h4>
+                    <h4><i class="fas fa-tags" style="color:#c9a84c;"></i> ${t('หมวดหมู่', 'Categories')}</h4>
                     <button class="add-btn" id="adminAddCategoryBtn" style="white-space:nowrap;">
                         <i class="fas fa-plus"></i> ${t('เพิ่มหมวดหมู่', 'Add Category')}
                     </button>
@@ -521,7 +526,7 @@ function renderCategoriesAdmin(content) {
     const addBtn = document.getElementById('adminAddCategoryBtn');
     if (addBtn) {
         addBtn.addEventListener('click', () => {
-            console.log('Add Category button clicked!');
+            console.log('🟢 Add Category button clicked!');
             openCategoryModal();
         });
     }
@@ -531,7 +536,10 @@ function renderCategoriesAdmin(content) {
         btn.addEventListener('click', () => {
             const catId = btn.dataset.id;
             const category = appData.categories.find(c => c.id === catId);
-            if (category) openCategoryModal(category);
+            if (category) {
+                console.log('🟡 Edit category clicked:', catId);
+                openCategoryModal(category);
+            }
         });
     });
     
@@ -548,8 +556,8 @@ function renderOrdersAdmin(content) {
     let html = `
         <div class="admin-table-wrap">
             <div class="table-header">
-                <h4><i class="fas fa-receipt" style="color:var(--gold);"></i> ${t('คำสั่งซื้อ', 'Orders')}</h4>
-                <span style="font-size:13px;color:var(--gray);">${appData.orders.length} ${t('รายการ', 'orders')}</span>
+                <h4><i class="fas fa-receipt" style="color:#c9a84c;"></i> ${t('คำสั่งซื้อ', 'Orders')}</h4>
+                <span style="font-size:13px;color:#8a7e7a;">${appData.orders.length} ${t('รายการ', 'orders')}</span>
             </div>
             <table class="admin-table">
                 <thead>
@@ -565,7 +573,7 @@ function renderOrdersAdmin(content) {
     `;
     
     if (appData.orders.length === 0) {
-        html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray);">${t('ยังไม่มีคำสั่งซื้อ', 'No orders')}</td></tr>`;
+        html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:#8a7e7a;">${t('ยังไม่มีคำสั่งซื้อ', 'No orders')}</td></tr>`;
     } else {
         appData.orders.forEach(o => {
             const statusLabel = {
@@ -590,10 +598,10 @@ function renderOrdersAdmin(content) {
 }
 
 // ============================================
-// 🔥 PRODUCT MODAL
+// 🔥 PRODUCT MODAL - FIXED
 // ============================================
 function openProductModal(product = null) {
-    console.log('Opening product modal...', product);
+    console.log('📦 Opening product modal...', product ? 'Edit mode' : 'Add mode');
     
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -602,7 +610,8 @@ function openProductModal(product = null) {
     const form = document.getElementById('modalForm');
     
     if (!overlay || !body) {
-        console.error('Modal elements not found!');
+        console.error('❌ Modal elements not found! Check IDs in HTML.');
+        toast('❌ ไม่พบโมดัล', 'error');
         return;
     }
     
@@ -610,7 +619,9 @@ function openProductModal(product = null) {
     uploadedImageUrl = product ? product.image : null;
     
     title.textContent = product ? t('แก้ไขสินค้า', 'Edit Product') : t('เพิ่มสินค้าใหม่', 'Add New Product');
-    submitBtn.textContent = product ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
+    submitBtn.innerHTML = product ? 
+        `<i class="fas fa-save"></i> ${t('อัปเดต', 'Update')}` : 
+        `<i class="fas fa-plus"></i> ${t('บันทึก', 'Save')}`;
     
     const catOptions = appData.categories.map(cat =>
         `<option value="${cat.id}" ${product && product.category === cat.id ? 'selected' : ''}>${adminLang === 'th' ? cat.th : cat.en}</option>`
@@ -633,11 +644,11 @@ function openProductModal(product = null) {
             <label>${t('ชื่อภาษาอังกฤษ', 'English Name')}</label>
             <div style="display:flex;gap:8px;align-items:center;">
                 <input type="text" id="pNameEn" value="${product ? product.name_en : ''}" required style="flex:1;">
-                <button type="button" class="btn btn-primary" id="autoTranslateBtn" style="padding:8px 16px;font-size:12px;white-space:nowrap;">
-                    <i class="fas fa-language"></i> ${t('แปลอัตโนมัติ', 'Auto-Translate')}
+                <button type="button" class="btn-primary" id="autoTranslateBtn" style="padding:8px 16px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">
+                    <i class="fas fa-language"></i> ${t('แปล', 'Translate')}
                 </button>
             </div>
-            <small style="color:var(--gray);">${t('ป้อนภาษาอังกฤษ แล้วกดปุ่มเพื่อแปลเป็นไทย', 'Enter English and click button to translate to Thai')}</small>
+            <small style="color:#8a7e7a;">${t('ป้อนภาษาอังกฤษ แล้วกดปุ่มเพื่อแปลเป็นไทย', 'Enter English and click button to translate to Thai')}</small>
         </div>
         
         <div class="form-group">
@@ -653,7 +664,7 @@ function openProductModal(product = null) {
                     <div class="upload-status" id="uploadStatus">${t('กำลังอัปโหลด...', 'Uploading...')}</div>
                 </div>
             </div>
-            <small style="color:var(--gray);">${t('คลิกเพื่อเลือกรูปภาพ (JPG, PNG, WebP) ขนาดสูงสุด 5MB', 'Click to select image (JPG, PNG, WebP) max 5MB')}</small>
+            <small style="color:#8a7e7a;">${t('คลิกเพื่อเลือกรูปภาพ (JPG, PNG, WebP) ขนาดสูงสุด 5MB', 'Click to select image (JPG, PNG, WebP) max 5MB')}</small>
         </div>
 
         <div class="form-row">
@@ -683,10 +694,12 @@ function openProductModal(product = null) {
         </div>
     `;
 
+    // Show the modal
     overlay.style.display = 'flex';
     overlay.classList.add('open');
+    console.log('✅ Modal opened!');
 
- // --- IMAGE UPLOAD HANDLERS ---
+// --- IMAGE UPLOAD HANDLERS ---
     const uploadContainer = document.getElementById('imageUploadContainer');
     const fileInput = document.getElementById('imageInput');
     const previewDiv = document.getElementById('imagePreview');
@@ -698,7 +711,7 @@ function openProductModal(product = null) {
     if (uploadContainer) {
         uploadContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadContainer.style.borderColor = 'var(--gold)';
+            uploadContainer.style.borderColor = '#c9a84c';
             uploadContainer.style.background = 'rgba(201,168,76,0.08)';
         });
 
@@ -741,7 +754,7 @@ function openProductModal(product = null) {
                 if (progressFill) progressFill.style.width = '0%';
                 if (statusText) statusText.textContent = t('กำลังอัปโหลด...', 'Uploading...');
             }
-            if (uploadContainer) uploadContainer.style.borderColor = 'var(--gold)';
+            if (uploadContainer) uploadContainer.style.borderColor = '#c9a84c';
 
             const url = await uploadImage(file);
             
@@ -809,7 +822,7 @@ function openProductModal(product = null) {
                 toast(t('การแปลล้มเหลว ❌', 'Translation failed ❌'), 'error');
             } finally {
                 translateBtn.disabled = false;
-                translateBtn.innerHTML = `<i class="fas fa-language"></i> ${t('แปลอัตโนมัติ', 'Auto-Translate')}`;
+                translateBtn.innerHTML = `<i class="fas fa-language"></i> ${t('แปล', 'Translate')}`;
             }
         });
     }
@@ -843,7 +856,6 @@ function openProductModal(product = null) {
                 sizes: sizes ? Array.from(sizes.selectedOptions).map(opt => opt.value) : [],
             };
             
-            // Disable submit button
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังบันทึก...', 'Saving...')}`;
@@ -857,7 +869,9 @@ function openProductModal(product = null) {
             
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.textContent = editingItem ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
+                submitBtn.innerHTML = editingItem ? 
+                    `<i class="fas fa-save"></i> ${t('อัปเดต', 'Update')}` : 
+                    `<i class="fas fa-plus"></i> ${t('บันทึก', 'Save')}`;
             }
             
             if (overlay) {
@@ -889,10 +903,10 @@ function openProductModal(product = null) {
 }
 
 // ============================================
-// 🔥 CATEGORY MODAL
+// 🔥 CATEGORY MODAL - FIXED
 // ============================================
 function openCategoryModal(category = null) {
-    console.log('Opening category modal...', category);
+    console.log('📂 Opening category modal...', category ? 'Edit mode' : 'Add mode');
     
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -901,14 +915,17 @@ function openCategoryModal(category = null) {
     const form = document.getElementById('modalForm');
     
     if (!overlay || !body) {
-        console.error('Modal elements not found!');
+        console.error('❌ Modal elements not found! Check IDs in HTML.');
+        toast('❌ ไม่พบโมดัล', 'error');
         return;
     }
     
     editingItem = category;
     
     title.textContent = category ? t('แก้ไขหมวดหมู่', 'Edit Category') : t('เพิ่มหมวดหมู่ใหม่', 'Add New Category');
-    submitBtn.textContent = category ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
+    submitBtn.innerHTML = category ? 
+        `<i class="fas fa-save"></i> ${t('อัปเดต', 'Update')}` : 
+        `<i class="fas fa-plus"></i> ${t('บันทึก', 'Save')}`;
     
     const iconOptions = [
         'fa-vest', 'fa-shirt', 'fa-moon', 'fa-people-arrows', 
@@ -922,7 +939,7 @@ function openCategoryModal(category = null) {
         <div class="form-group">
             <label>${t('รหัสหมวดหมู่ (ภาษาอังกฤษ)', 'Category ID (English)')}</label>
             <input type="text" id="cId" value="${category ? category.id : ''}" ${category ? 'readonly' : ''} required>
-            <small style="color:var(--gray);font-size:12px;">${category ? '' : t('ใช้ตัวพิมพ์เล็กและขีดกลางเท่านั้น', 'Use lowercase and dashes only')}</small>
+            <small style="color:#8a7e7a;font-size:12px;">${category ? '' : t('ใช้ตัวพิมพ์เล็กและขีดกลางเท่านั้น', 'Use lowercase and dashes only')}</small>
         </div>
         <div class="form-group">
             <label>${t('ชื่อภาษาไทย', 'Thai Name')}</label>
@@ -938,8 +955,10 @@ function openCategoryModal(category = null) {
         </div>
     `;
     
+    // Show the modal
     overlay.style.display = 'flex';
     overlay.classList.add('open');
+    console.log('✅ Category modal opened!');
     
     // --- FORM SUBMIT ---
     if (form) {
@@ -984,7 +1003,9 @@ function openCategoryModal(category = null) {
             
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.textContent = category ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
+                submitBtn.innerHTML = category ? 
+                    `<i class="fas fa-save"></i> ${t('อัปเดต', 'Update')}` : 
+                    `<i class="fas fa-plus"></i> ${t('บันทึก', 'Save')}`;
             }
             
             if (overlay) {
@@ -1071,4 +1092,5 @@ if (logoutBtn) {
     console.log('📦 Products:', appData.products.length);
     console.log('📂 Categories:', appData.categories.length);
     console.log('📋 Orders:', appData.orders.length);
+    console.log('💡 Click "Add Product" or "Add Category" to test modals!');
 })();
