@@ -9,7 +9,53 @@ let adminLoggedIn = false;
 let currentAdminTab = 'dashboard';
 let editingItem = null;
 let authToken = null;
+
+// --- LANGUAGE & CURRENCY STATE (Admin UI) ---
+let adminLang = 'th';
 let adminCurrency = 'thb';
+
+// --- LIBRE TRANSLATE CONFIG (for product/category auto‑translation) ---
+const LIBRE_URL = 'https://libretranslate.com/translate';
+let translationCache = JSON.parse(localStorage.getItem('lt_cache_admin') || '{}');
+
+// --- TRANSLATION HELPER (for admin UI static texts) ---
+function t(thText, enText) {
+    return adminLang === 'th' ? thText : enText;
+}
+
+function formatPrice(amount) {
+    if (adminCurrency === 'thb') return '฿' + amount.toLocaleString();
+    const usd = Math.round(amount / 35);
+    return '$' + usd.toLocaleString();
+}
+
+// --- LIBRE TRANSLATE FUNCTION (for auto‑translating English → Thai) ---
+async function translateText(text, targetLang = 'th') {
+    if (targetLang === 'en') return text;
+    const cacheKey = `${text}|${targetLang}`;
+    if (translationCache[cacheKey]) return translationCache[cacheKey];
+
+    try {
+        const response = await fetch(LIBRE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                q: text,
+                source: 'en',
+                target: targetLang,
+                format: 'text'
+            })
+        });
+        const data = await response.json();
+        const translated = data.translatedText || text;
+        translationCache[cacheKey] = translated;
+        localStorage.setItem('lt_cache_admin', JSON.stringify(translationCache));
+        return translated;
+    } catch (e) {
+        console.warn('LibreTranslate failed:', e);
+        return text; // fallback
+    }
+}
 
 // --- API HELPERS ---
 async function apiFetch(endpoint, options = {}) {
@@ -47,9 +93,9 @@ async function adminLogin(username, password) {
         adminLoggedIn = true;
         await loadDataFromDB();
         renderAdmin();
-        toast('✅ เข้าสู่ระบบสำเร็จ');
+        toast('✅ ' + t('เข้าสู่ระบบสำเร็จ', 'Login successful'));
     } catch (e) {
-        toast('❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
+        toast('❌ ' + t('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'Invalid credentials'), 'error');
     }
 }
 
@@ -57,26 +103,73 @@ function adminLogout() {
     authToken = null;
     adminLoggedIn = false;
     renderAdmin();
-    toast('👋 ออกจากระบบ');
+    toast('👋 ' + t('ออกจากระบบ', 'Logged out'));
 }
 
-// --- CRUD OPERATIONS ---
-async function addProduct(p) { await apiFetch('/products', { method: 'POST', body: JSON.stringify(p) }); await loadDataFromDB(); renderAdmin(); }
-async function updateProduct(id, p) { await apiFetch(`/products/${id}`, { method: 'PUT', body: JSON.stringify(p) }); await loadDataFromDB(); renderAdmin(); }
-async function deleteProduct(id) { await apiFetch(`/products/${id}`, { method: 'DELETE' }); await loadDataFromDB(); renderAdmin(); }
-async function addCategory(c) { await apiFetch('/categories', { method: 'POST', body: JSON.stringify(c) }); await loadDataFromDB(); renderAdmin(); }
-async function updateCategory(id, c) { await apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(c) }); await loadDataFromDB(); renderAdmin(); }
-async function deleteCategory(id) { await apiFetch(`/categories/${id}`, { method: 'DELETE' }); await loadDataFromDB(); renderAdmin(); }
-
-function formatPrice(amount) {
-    if (adminCurrency === 'thb') return '฿' + amount.toLocaleString();
-    const usd = Math.round(amount / 35);
-    return '$' + usd.toLocaleString();
+// --- CRUD OPERATIONS (now auto‑translate before saving) ---
+async function addProduct(p) {
+    // p is the payload with only English fields (name_en, desc_en)
+    // Translate to Thai
+    const name_th = await translateText(p.name_en);
+    const desc_th = await translateText(p.desc_en || '');
+    const payload = {
+        ...p,
+        name_th,
+        desc_th,
+        // keep name_en, desc_en as provided
+    };
+    await apiFetch('/products', { method: 'POST', body: JSON.stringify(payload) });
+    await loadDataFromDB();
+    renderAdmin();
 }
 
+async function updateProduct(id, p) {
+    // Same: translate English fields
+    const name_th = await translateText(p.name_en);
+    const desc_th = await translateText(p.desc_en || '');
+    const payload = {
+        ...p,
+        name_th,
+        desc_th,
+    };
+    await apiFetch(`/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    await loadDataFromDB();
+    renderAdmin();
+}
+
+async function deleteProduct(id) {
+    await apiFetch(`/products/${id}`, { method: 'DELETE' });
+    await loadDataFromDB();
+    renderAdmin();
+}
+
+async function addCategory(c) {
+    // c has only English fields: id, en, icon (no th)
+    const th = await translateText(c.en);
+    const payload = { ...c, th };
+    await apiFetch('/categories', { method: 'POST', body: JSON.stringify(payload) });
+    await loadDataFromDB();
+    renderAdmin();
+}
+
+async function updateCategory(id, c) {
+    const th = await translateText(c.en);
+    const payload = { ...c, th };
+    await apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    await loadDataFromDB();
+    renderAdmin();
+}
+
+async function deleteCategory(id) {
+    await apiFetch(`/categories/${id}`, { method: 'DELETE' });
+    await loadDataFromDB();
+    renderAdmin();
+}
+
+// --- UTILITY ---
 function getCategoryName(catId) {
     const cat = appData.categories.find(c => c.id === catId);
-    return cat ? cat.th : catId;
+    return cat ? (adminLang === 'th' ? cat.th : cat.en) : catId;
 }
 
 function toast(message, type = 'success') {
@@ -100,8 +193,10 @@ function renderAdmin() {
         case 'products': renderProductsAdmin(content); break;
         case 'categories': renderCategoriesAdmin(content); break;
         case 'orders': renderOrdersAdmin(content); break;
-        default: content.innerHTML = '<p>เลือกเมนู</p>';
+        default: content.innerHTML = '<p>'+t('เลือกเมนู', 'Select menu')+'</p>';
     }
+    // Sync dropdowns
+    document.getElementById('adminLangSelect').value = adminLang;
     document.getElementById('adminCurrencySelect').value = adminCurrency;
 }
 
@@ -109,10 +204,10 @@ function renderLogin() {
     const content = document.getElementById('adminContent');
     content.innerHTML = `<div class="admin-login"><div class="admin-login-box">
         <h3><i class="fas fa-crown" style="color:var(--gold);"></i> Admin</h3>
-        <p class="sub">เข้าสู่ระบบแผงควบคุม</p>
+        <p class="sub">${t('เข้าสู่ระบบแผงควบคุม', 'Admin Login')}</p>
         <input type="text" id="adminUser" value="admin">
         <input type="password" id="adminPass" value="admin123">
-        <button class="login-btn" id="adminLoginBtn">เข้าสู่ระบบ</button>
+        <button class="login-btn" id="adminLoginBtn">${t('เข้าสู่ระบบ', 'Login')}</button>
     </div></div>`;
     document.getElementById('adminLoginBtn').addEventListener('click', () => {
         adminLogin(document.getElementById('adminUser').value, document.getElementById('adminPass').value);
@@ -127,26 +222,26 @@ function renderDashboard(content) {
     const totalRevenue = appData.orders.reduce((s, o) => s + o.total, 0);
     content.innerHTML = `
         <div class="admin-stats">
-            <div class="admin-stat"><div class="number">${totalProducts}</div><div class="label">สินค้า</div></div>
-            <div class="admin-stat"><div class="number">${totalCategories}</div><div class="label">หมวดหมู่</div></div>
-            <div class="admin-stat"><div class="number">${totalOrders}</div><div class="label">คำสั่งซื้อ</div></div>
-            <div class="admin-stat"><div class="number">${formatPrice(totalRevenue)}</div><div class="label">ยอดขายรวม</div></div>
+            <div class="admin-stat"><div class="number">${totalProducts}</div><div class="label">${t('สินค้า', 'Products')}</div></div>
+            <div class="admin-stat"><div class="number">${totalCategories}</div><div class="label">${t('หมวดหมู่', 'Categories')}</div></div>
+            <div class="admin-stat"><div class="number">${totalOrders}</div><div class="label">${t('คำสั่งซื้อ', 'Orders')}</div></div>
+            <div class="admin-stat"><div class="number">${formatPrice(totalRevenue)}</div><div class="label">${t('ยอดขายรวม', 'Revenue')}</div></div>
         </div>
         <div style="background:white;border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);">
-            <h4 style="margin-bottom:8px;">ยินดีต้อนรับสู่แผงควบคุม</h4>
-            <p style="color:var(--gray);font-size:14px;">จัดการสินค้า หมวดหมู่ และคำสั่งซื้อจากเมนูด้านซ้าย</p>
+            <h4 style="margin-bottom:8px;">${t('ยินดีต้อนรับสู่แผงควบคุม', 'Welcome to Admin Panel')}</h4>
+            <p style="color:var(--gray);font-size:14px;">${t('จัดการสินค้า หมวดหมู่ และคำสั่งซื้อจากเมนูด้านซ้าย', 'Manage products, categories, and orders from the left menu.')}</p>
         </div>
     `;
 }
 
 function renderProductsAdmin(content) {
-    let html = `<div class="admin-table-wrap"><div class="table-header"><h4><i class="fas fa-box" style="color:var(--gold);"></i> รายการสินค้า</h4>
-        <button class="add-btn" id="adminAddProductBtn"><i class="fas fa-plus"></i> เพิ่มสินค้า</button></div>
-        <table class="admin-table"><thead><tr><th>#</th><th>ชื่อ</th><th>หมวดหมู่</th><th>ราคา</th><th>จัดการ</th></tr></thead><tbody>`;
-    if (appData.products.length === 0) html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray);">ยังไม่มีสินค้า</td></tr>`;
+    let html = `<div class="admin-table-wrap"><div class="table-header"><h4><i class="fas fa-box" style="color:var(--gold);"></i> ${t('รายการสินค้า', 'Products')}</h4>
+        <button class="add-btn" id="adminAddProductBtn"><i class="fas fa-plus"></i> ${t('เพิ่มสินค้า', 'Add Product')}</button></div>
+        <table class="admin-table"><thead><tr><th>#</th><th>${t('ชื่อ (อังกฤษ)', 'Name (EN)')}</th><th>${t('หมวดหมู่', 'Category')}</th><th>${t('ราคา', 'Price')}</th><th>${t('จัดการ', 'Actions')}</th></tr></thead><tbody>`;
+    if (appData.products.length === 0) html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray);">${t('ยังไม่มีสินค้า', 'No products')}</td></tr>`;
     else {
         appData.products.forEach(p => {
-            html += `<tr><td>${p.id}</td><td>${p.name_th}</td>
+            html += `<tr><td>${p.id}</td><td>${p.name_en}</td>
                 <td><span class="badge">${getCategoryName(p.category)}</span></td>
                 <td>${formatPrice(p.price)}</td>
                 <td><div class="actions"><button class="edit-btn" data-id="${p.id}"><i class="fas fa-edit"></i></button>
@@ -164,18 +259,18 @@ function renderProductsAdmin(content) {
     });
     content.querySelectorAll('.del-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
-            if (confirm('ลบสินค้านี้ใช่หรือไม่?')) await deleteProduct(parseInt(btn.dataset.id));
+            if (confirm(t('ลบสินค้านี้ใช่หรือไม่?', 'Delete this product?'))) await deleteProduct(parseInt(btn.dataset.id));
         });
     });
 }
 
 function renderCategoriesAdmin(content) {
-    let html = `<div class="admin-table-wrap"><div class="table-header"><h4><i class="fas fa-tags" style="color:var(--gold);"></i> หมวดหมู่</h4>
-        <button class="add-btn" id="adminAddCategoryBtn"><i class="fas fa-plus"></i> เพิ่มหมวดหมู่</button></div>
-        <table class="admin-table"><thead><tr><th>#</th><th>ชื่อไทย</th><th>ชื่ออังกฤษ</th><th>ไอคอน</th><th>สินค้า</th><th>จัดการ</th></tr></thead><tbody>`;
+    let html = `<div class="admin-table-wrap"><div class="table-header"><h4><i class="fas fa-tags" style="color:var(--gold);"></i> ${t('หมวดหมู่', 'Categories')}</h4>
+        <button class="add-btn" id="adminAddCategoryBtn"><i class="fas fa-plus"></i> ${t('เพิ่มหมวดหมู่', 'Add Category')}</button></div>
+        <table class="admin-table"><thead><tr><th>${t('รหัส', 'ID')}</th><th>${t('ชื่อ (อังกฤษ)', 'Name (EN)')}</th><th>${t('ไอคอน', 'Icon')}</th><th>${t('สินค้า', 'Products')}</th><th>${t('จัดการ', 'Actions')}</th></tr></thead><tbody>`;
     appData.categories.forEach(cat => {
         const count = appData.products.filter(p => p.category === cat.id).length;
-        html += `<tr><td>${cat.id}</td><td>${cat.th}</td><td>${cat.en}</td><td><i class="fas ${cat.icon}"></i></td><td>${count}</td>
+        html += `<tr><td>${cat.id}</td><td>${cat.en}</td><td><i class="fas ${cat.icon}"></i></td><td>${count}</td>
             <td><div class="actions"><button class="edit-btn" data-id="${cat.id}"><i class="fas fa-edit"></i></button>
             <button class="del-btn" data-id="${cat.id}" ${count > 0 ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}><i class="fas fa-trash"></i></button></div></td></tr>`;
     });
@@ -190,19 +285,19 @@ function renderCategoriesAdmin(content) {
     });
     content.querySelectorAll('.del-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', async () => {
-            if (confirm('ลบหมวดหมู่นี้ใช่หรือไม่?')) await deleteCategory(btn.dataset.id);
+            if (confirm(t('ลบหมวดหมู่นี้ใช่หรือไม่?', 'Delete this category?'))) await deleteCategory(btn.dataset.id);
         });
     });
 }
 
 function renderOrdersAdmin(content) {
-    let html = `<div class="admin-table-wrap"><div class="table-header"><h4><i class="fas fa-receipt" style="color:var(--gold);"></i> คำสั่งซื้อ</h4>
-        <span style="font-size:13px;color:var(--gray);">${appData.orders.length} รายการ</span></div>
-        <table class="admin-table"><thead><tr><th>เลขที่</th><th>ลูกค้า</th><th>วันที่</th><th>ยอดรวม</th><th>สถานะ</th></tr></thead><tbody>`;
-    if (appData.orders.length === 0) html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray);">ยังไม่มีคำสั่งซื้อ</td></tr>`;
+    let html = `<div class="admin-table-wrap"><div class="table-header"><h4><i class="fas fa-receipt" style="color:var(--gold);"></i> ${t('คำสั่งซื้อ', 'Orders')}</h4>
+        <span style="font-size:13px;color:var(--gray);">${appData.orders.length} ${t('รายการ', 'orders')}</span></div>
+        <table class="admin-table"><thead><tr><th>${t('เลขที่', 'Order #')}</th><th>${t('ลูกค้า', 'Customer')}</th><th>${t('วันที่', 'Date')}</th><th>${t('ยอดรวม', 'Total')}</th><th>${t('สถานะ', 'Status')}</th></tr></thead><tbody>`;
+    if (appData.orders.length === 0) html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray);">${t('ยังไม่มีคำสั่งซื้อ', 'No orders')}</td></tr>`;
     else {
         appData.orders.forEach(o => {
-            const statusLabel = { pending: 'รอดำเนินการ', completed: 'เสร็จสิ้น', cancelled: 'ยกเลิก' } [o.status] || o.status;
+            const statusLabel = { pending: t('รอดำเนินการ', 'Pending'), completed: t('เสร็จสิ้น', 'Completed'), cancelled: t('ยกเลิก', 'Cancelled') } [o.status] || o.status;
             html += `<tr><td>#${o.id}</td><td>${o.customer}</td><td>${o.date}</td><td>${formatPrice(o.total)}</td><td><span class="badge">${statusLabel}</span></td></tr>`;
         });
     }
@@ -210,7 +305,7 @@ function renderOrdersAdmin(content) {
     content.innerHTML = html;
 }
 
-// --- MODALS ---
+// --- MODALS (Simplified – only English fields, auto-translate on save) ---
 function openProductModal(product = null) {
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -218,39 +313,48 @@ function openProductModal(product = null) {
     const submitBtn = document.getElementById('modalSubmitBtn');
     const form = document.getElementById('modalForm');
     editingItem = product;
-    title.textContent = product ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่';
-    submitBtn.textContent = product ? 'อัปเดต' : 'บันทึก';
+    title.textContent = product ? t('แก้ไขสินค้า', 'Edit Product') : t('เพิ่มสินค้าใหม่', 'Add New Product');
+    submitBtn.textContent = product ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
     const catOptions = appData.categories.map(cat =>
-        `<option value="${cat.id}" ${product && product.category === cat.id ? 'selected' : ''}>${cat.th}</option>`
+        `<option value="${cat.id}" ${product && product.category === cat.id ? 'selected' : ''}>${cat.en}</option>`
     ).join('');
     const sizeOptions = ['S', 'M', 'L', 'XL', 'One Size'].map(s =>
         `<option value="${s}" ${product && product.sizes && product.sizes.includes(s) ? 'selected' : ''}>${s}</option>`
     ).join('');
     body.innerHTML = `
-        <div class="form-group"><label>ชื่อภาษาไทย</label><input type="text" id="pNameTh" value="${product ? product.name_th : ''}" required></div>
-        <div class="form-group"><label>ชื่อภาษาอังกฤษ</label><input type="text" id="pNameEn" value="${product ? product.name_en : ''}" required></div>
-        <div class="form-row"><div class="form-group"><label>หมวดหมู่</label><select id="pCategory">${catOptions}</select></div>
-        <div class="form-group"><label>ราคา (บาท)</label><input type="number" id="pPrice" value="${product ? product.price : ''}" required min="0"></div></div>
-        <div class="form-group"><label>คำอธิบายภาษาไทย</label><textarea id="pDescTh">${product ? product.desc_th : ''}</textarea></div>
-        <div class="form-group"><label>คำอธิบายภาษาอังกฤษ</label><textarea id="pDescEn">${product ? product.desc_en : ''}</textarea></div>
-        <div class="form-row"><div class="form-group"><label>ไอคอน/อีโมจิ</label><input type="text" id="pImage" value="${product ? product.image : '👗'}" maxlength="4"></div>
-        <div class="form-group"><label>ไซส์ (กด Ctrl เพื่อเลือกหลายรายการ)</label><select id="pSizes" multiple style="height:auto;min-height:60px;">${sizeOptions}</select></div></div>
+        <div class="form-group"><label>${t('ชื่อสินค้า (ภาษาอังกฤษ)', 'Product Name (English)')}</label>
+            <input type="text" id="pNameEn" value="${product ? product.name_en : ''}" required></div>
+        <div class="form-row">
+            <div class="form-group"><label>${t('หมวดหมู่', 'Category')}</label><select id="pCategory">${catOptions}</select></div>
+            <div class="form-group"><label>${t('ราคา (บาท)', 'Price (THB)')}</label><input type="number" id="pPrice" value="${product ? product.price : ''}" required min="0"></div>
+        </div>
+        <div class="form-group"><label>${t('คำอธิบาย (ภาษาอังกฤษ)', 'Description (English)')}</label>
+            <textarea id="pDescEn">${product ? product.desc_en : ''}</textarea></div>
+        <div class="form-row">
+            <div class="form-group"><label>${t('ไอคอน/อีโมจิ', 'Icon/Emoji')}</label><input type="text" id="pImage" value="${product ? product.image : '👗'}" maxlength="4"></div>
+            <div class="form-group"><label>${t('ไซส์ (กด Ctrl เพื่อเลือกหลายรายการ)', 'Sizes (Ctrl+Click)')}</label>
+                <select id="pSizes" multiple style="height:auto;min-height:60px;">${sizeOptions}</select></div>
+        </div>
+        <p style="margin-top:12px;font-size:13px;color:var(--gray);"><i class="fas fa-info-circle"></i> ${t('ชื่อและคำอธิบายภาษาไทยจะถูกแปลโดยอัตโนมัติ', 'Thai name and description will be auto‑translated.')}</p>
     `;
     overlay.classList.add('open');
     form.onsubmit = async (e) => {
         e.preventDefault();
         const payload = {
-            name_th: document.getElementById('pNameTh').value.trim(),
             name_en: document.getElementById('pNameEn').value.trim(),
             category: document.getElementById('pCategory').value,
             price: parseFloat(document.getElementById('pPrice').value),
-            desc_th: document.getElementById('pDescTh').value.trim(),
             desc_en: document.getElementById('pDescEn').value.trim(),
             image: document.getElementById('pImage').value.trim() || '👗',
             sizes: Array.from(document.getElementById('pSizes').selectedOptions).map(opt => opt.value),
         };
-        if (editingItem) { await updateProduct(editingItem.id, { ...editingItem, ...payload }); toast('อัปเดตสินค้าเรียบร้อย'); }
-        else { await addProduct({ ...payload, id: Date.now() % 100000 }); toast('เพิ่มสินค้าเรียบร้อย'); }
+        if (editingItem) {
+            await updateProduct(editingItem.id, payload);
+            toast(t('อัปเดตสินค้าเรียบร้อย', 'Product updated'));
+        } else {
+            await addProduct(payload);
+            toast(t('เพิ่มสินค้าเรียบร้อย', 'Product added'));
+        }
         overlay.classList.remove('open');
     };
     document.getElementById('modalCloseBtn').onclick = () => overlay.classList.remove('open');
@@ -264,37 +368,43 @@ function openCategoryModal(category = null) {
     const submitBtn = document.getElementById('modalSubmitBtn');
     const form = document.getElementById('modalForm');
     editingItem = category;
-    title.textContent = category ? 'แก้ไขหมวดหมู่' : 'เพิ่มหมวดหมู่ใหม่';
-    submitBtn.textContent = category ? 'อัปเดต' : 'บันทึก';
+    title.textContent = category ? t('แก้ไขหมวดหมู่', 'Edit Category') : t('เพิ่มหมวดหมู่ใหม่', 'Add New Category');
+    submitBtn.textContent = category ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
     const iconOptions = ['fa-vest', 'fa-shirt', 'fa-moon', 'fa-people-arrows', 'fa-calendar-check',
         'fa-shoe-prints', 'fa-bag-shopping', 'fa-gem', 'fa-clock', 'fa-gift'
     ].map(icon =>
         `<option value="${icon}" ${category && category.icon === icon ? 'selected' : ''}>${icon}</option>`
     ).join('');
     body.innerHTML = `
-        <div class="form-group"><label>รหัสหมวดหมู่ (ภาษาอังกฤษ)</label><input type="text" id="cId" value="${category ? category.id : ''}" ${category ? 'readonly' : ''} required></div>
-        <div class="form-group"><label>ชื่อภาษาไทย</label><input type="text" id="cTh" value="${category ? category.th : ''}" required></div>
-        <div class="form-group"><label>ชื่อภาษาอังกฤษ</label><input type="text" id="cEn" value="${category ? category.en : ''}" required></div>
-        <div class="form-group"><label>ไอคอน</label><select id="cIcon">${iconOptions}</select></div>
+        <div class="form-group"><label>${t('รหัสหมวดหมู่ (ภาษาอังกฤษ)', 'Category ID (English)')}</label>
+            <input type="text" id="cId" value="${category ? category.id : ''}" ${category ? 'readonly' : ''} required></div>
+        <div class="form-group"><label>${t('ชื่อหมวดหมู่ (ภาษาอังกฤษ)', 'Category Name (English)')}</label>
+            <input type="text" id="cEn" value="${category ? category.en : ''}" required></div>
+        <div class="form-group"><label>${t('ไอคอน', 'Icon')}</label><select id="cIcon">${iconOptions}</select></div>
+        <p style="margin-top:12px;font-size:13px;color:var(--gray);"><i class="fas fa-info-circle"></i> ${t('ชื่อภาษาไทยจะถูกแปลโดยอัตโนมัติ', 'Thai name will be auto‑translated.')}</p>
     `;
     overlay.classList.add('open');
     form.onsubmit = async (e) => {
         e.preventDefault();
         const payload = {
             id: document.getElementById('cId').value.trim().toLowerCase().replace(/\s+/g, '-'),
-            th: document.getElementById('cTh').value.trim(),
             en: document.getElementById('cEn').value.trim(),
             icon: document.getElementById('cIcon').value,
         };
-        if (category) { await updateCategory(category.id, payload); toast('อัปเดตหมวดหมู่เรียบร้อย'); }
-        else { await addCategory(payload); toast('เพิ่มหมวดหมู่เรียบร้อย'); }
+        if (category) {
+            await updateCategory(category.id, payload);
+            toast(t('อัปเดตหมวดหมู่เรียบร้อย', 'Category updated'));
+        } else {
+            await addCategory(payload);
+            toast(t('เพิ่มหมวดหมู่เรียบร้อย', 'Category added'));
+        }
         overlay.classList.remove('open');
     };
     document.getElementById('modalCloseBtn').onclick = () => overlay.classList.remove('open');
     overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
 }
 
-// --- NAVIGATION ---
+// --- SIDEBAR NAVIGATION ---
 document.querySelectorAll('.admin-sidebar .menu-item').forEach(el => {
     el.addEventListener('click', () => {
         const tab = el.dataset.tab;
@@ -306,7 +416,11 @@ document.querySelectorAll('.admin-sidebar .menu-item').forEach(el => {
     });
 });
 
-// --- CURRENCY ---
+// --- LANGUAGE & CURRENCY DROPDOWN EVENTS ---
+document.getElementById('adminLangSelect').addEventListener('change', (e) => {
+    adminLang = e.target.value;
+    renderAdmin();
+});
 document.getElementById('adminCurrencySelect').addEventListener('change', (e) => {
     adminCurrency = e.target.value;
     renderAdmin();
@@ -320,4 +434,5 @@ document.getElementById('adminLogoutBtn').addEventListener('click', adminLogout)
     await loadDataFromDB();
     renderAdmin();
     console.log('✅ Admin panel ready – API:', API_URL);
+    console.log('🤖 Auto‑translation (EN→TH) enabled for products & categories.');
 })();
