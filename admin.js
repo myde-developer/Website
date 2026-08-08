@@ -10,15 +10,11 @@ let currentAdminTab = 'dashboard';
 let editingItem = null;
 let authToken = null;
 
-// --- LANGUAGE & CURRENCY STATE (Admin UI) ---
+// --- LANGUAGE & CURRENCY STATE ---
 let adminLang = 'th';
 let adminCurrency = 'thb';
 
-// --- LIBRE TRANSLATE CONFIG (for product/category auto‑translation) ---
-const LIBRE_URL = 'https://libretranslate.com/translate';
-let translationCache = JSON.parse(localStorage.getItem('lt_cache_admin') || '{}');
-
-// --- TRANSLATION HELPER (for admin UI static texts) ---
+// --- TRANSLATION HELPER ---
 function t(thText, enText) {
     return adminLang === 'th' ? thText : enText;
 }
@@ -29,14 +25,13 @@ function formatPrice(amount) {
     return '$' + usd.toLocaleString();
 }
 
-// --- LIBRE TRANSLATE FUNCTION (for auto‑translating English → Thai) ---
+// ============================================
+// 🔥 LIBRETRANSLATE INTEGRATION
+// ============================================
 async function translateText(text, targetLang = 'th') {
-    if (targetLang === 'en') return text;
-    const cacheKey = `${text}|${targetLang}`;
-    if (translationCache[cacheKey]) return translationCache[cacheKey];
-
+    if (!text.trim()) return text;
     try {
-        const response = await fetch(LIBRE_URL, {
+        const response = await fetch('https://libretranslate.com/translate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -46,14 +41,13 @@ async function translateText(text, targetLang = 'th') {
                 format: 'text'
             })
         });
+        if (!response.ok) throw new Error('Translation API error');
         const data = await response.json();
-        const translated = data.translatedText || text;
-        translationCache[cacheKey] = translated;
-        localStorage.setItem('lt_cache_admin', JSON.stringify(translationCache));
-        return translated;
-    } catch (e) {
-        console.warn('LibreTranslate failed:', e);
-        return text; // fallback
+        return data.translatedText;
+    } catch (error) {
+        console.error('Translation failed:', error);
+        toast('⚠️ ' + t('ไม่สามารถแปลได้ โปรดลองอีกครั้ง', 'Translation failed, please try again'), 'error');
+        return text; // fallback to original
     }
 }
 
@@ -106,67 +100,14 @@ function adminLogout() {
     toast('👋 ' + t('ออกจากระบบ', 'Logged out'));
 }
 
-// --- CRUD OPERATIONS (now auto‑translate before saving) ---
-async function addProduct(p) {
-    // p is the payload with only English fields (name_en, desc_en)
-    // Translate to Thai
-    const name_th = await translateText(p.name_en);
-    const desc_th = await translateText(p.desc_en || '');
-    const payload = {
-        ...p,
-        name_th,
-        desc_th,
-        // keep name_en, desc_en as provided
-    };
-    await apiFetch('/products', { method: 'POST', body: JSON.stringify(payload) });
-    await loadDataFromDB();
-    renderAdmin();
-}
+// --- CRUD OPERATIONS ---
+async function addProduct(p) { await apiFetch('/products', { method: 'POST', body: JSON.stringify(p) }); await loadDataFromDB(); renderAdmin(); }
+async function updateProduct(id, p) { await apiFetch(`/products/${id}`, { method: 'PUT', body: JSON.stringify(p) }); await loadDataFromDB(); renderAdmin(); }
+async function deleteProduct(id) { await apiFetch(`/products/${id}`, { method: 'DELETE' }); await loadDataFromDB(); renderAdmin(); }
+async function addCategory(c) { await apiFetch('/categories', { method: 'POST', body: JSON.stringify(c) }); await loadDataFromDB(); renderAdmin(); }
+async function updateCategory(id, c) { await apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(c) }); await loadDataFromDB(); renderAdmin(); }
+async function deleteCategory(id) { await apiFetch(`/categories/${id}`, { method: 'DELETE' }); await loadDataFromDB(); renderAdmin(); }
 
-async function updateProduct(id, p) {
-    // Same: translate English fields
-    const name_th = await translateText(p.name_en);
-    const desc_th = await translateText(p.desc_en || '');
-    const payload = {
-        ...p,
-        name_th,
-        desc_th,
-    };
-    await apiFetch(`/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    await loadDataFromDB();
-    renderAdmin();
-}
-
-async function deleteProduct(id) {
-    await apiFetch(`/products/${id}`, { method: 'DELETE' });
-    await loadDataFromDB();
-    renderAdmin();
-}
-
-async function addCategory(c) {
-    // c has only English fields: id, en, icon (no th)
-    const th = await translateText(c.en);
-    const payload = { ...c, th };
-    await apiFetch('/categories', { method: 'POST', body: JSON.stringify(payload) });
-    await loadDataFromDB();
-    renderAdmin();
-}
-
-async function updateCategory(id, c) {
-    const th = await translateText(c.en);
-    const payload = { ...c, th };
-    await apiFetch(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    await loadDataFromDB();
-    renderAdmin();
-}
-
-async function deleteCategory(id) {
-    await apiFetch(`/categories/${id}`, { method: 'DELETE' });
-    await loadDataFromDB();
-    renderAdmin();
-}
-
-// --- UTILITY ---
 function getCategoryName(catId) {
     const cat = appData.categories.find(c => c.id === catId);
     return cat ? (adminLang === 'th' ? cat.th : cat.en) : catId;
@@ -237,11 +178,11 @@ function renderDashboard(content) {
 function renderProductsAdmin(content) {
     let html = `<div class="admin-table-wrap"><div class="table-header"><h4><i class="fas fa-box" style="color:var(--gold);"></i> ${t('รายการสินค้า', 'Products')}</h4>
         <button class="add-btn" id="adminAddProductBtn"><i class="fas fa-plus"></i> ${t('เพิ่มสินค้า', 'Add Product')}</button></div>
-        <table class="admin-table"><thead><tr><th>#</th><th>${t('ชื่อ (อังกฤษ)', 'Name (EN)')}</th><th>${t('หมวดหมู่', 'Category')}</th><th>${t('ราคา', 'Price')}</th><th>${t('จัดการ', 'Actions')}</th></tr></thead><tbody>`;
+        <table class="admin-table"><thead><tr><th>#</th><th>${t('ชื่อ', 'Name')}</th><th>${t('หมวดหมู่', 'Category')}</th><th>${t('ราคา', 'Price')}</th><th>${t('จัดการ', 'Actions')}</th></tr></thead><tbody>`;
     if (appData.products.length === 0) html += `<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--gray);">${t('ยังไม่มีสินค้า', 'No products')}</td></tr>`;
     else {
         appData.products.forEach(p => {
-            html += `<tr><td>${p.id}</td><td>${p.name_en}</td>
+            html += `<tr><td>${p.id}</td><td>${adminLang === 'th' ? p.name_th : p.name_en}</td>
                 <td><span class="badge">${getCategoryName(p.category)}</span></td>
                 <td>${formatPrice(p.price)}</td>
                 <td><div class="actions"><button class="edit-btn" data-id="${p.id}"><i class="fas fa-edit"></i></button>
@@ -267,10 +208,10 @@ function renderProductsAdmin(content) {
 function renderCategoriesAdmin(content) {
     let html = `<div class="admin-table-wrap"><div class="table-header"><h4><i class="fas fa-tags" style="color:var(--gold);"></i> ${t('หมวดหมู่', 'Categories')}</h4>
         <button class="add-btn" id="adminAddCategoryBtn"><i class="fas fa-plus"></i> ${t('เพิ่มหมวดหมู่', 'Add Category')}</button></div>
-        <table class="admin-table"><thead><tr><th>${t('รหัส', 'ID')}</th><th>${t('ชื่อ (อังกฤษ)', 'Name (EN)')}</th><th>${t('ไอคอน', 'Icon')}</th><th>${t('สินค้า', 'Products')}</th><th>${t('จัดการ', 'Actions')}</th></tr></thead><tbody>`;
+        <table class="admin-table"><thead><tr><th>#</th><th>${t('ชื่อภาษาไทย', 'Thai Name')}</th><th>${t('ชื่อภาษาอังกฤษ', 'English Name')}</th><th>${t('ไอคอน', 'Icon')}</th><th>${t('สินค้า', 'Products')}</th><th>${t('จัดการ', 'Actions')}</th></tr></thead><tbody>`;
     appData.categories.forEach(cat => {
         const count = appData.products.filter(p => p.category === cat.id).length;
-        html += `<tr><td>${cat.id}</td><td>${cat.en}</td><td><i class="fas ${cat.icon}"></i></td><td>${count}</td>
+        html += `<tr><td>${cat.id}</td><td>${cat.th}</td><td>${cat.en}</td><td><i class="fas ${cat.icon}"></i></td><td>${count}</td>
             <td><div class="actions"><button class="edit-btn" data-id="${cat.id}"><i class="fas fa-edit"></i></button>
             <button class="del-btn" data-id="${cat.id}" ${count > 0 ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}><i class="fas fa-trash"></i></button></div></td></tr>`;
     });
@@ -305,7 +246,7 @@ function renderOrdersAdmin(content) {
     content.innerHTML = html;
 }
 
-// --- MODALS (Simplified – only English fields, auto-translate on save) ---
+// --- MODALS WITH LIBRETRANSLATE INTEGRATION ---
 function openProductModal(product = null) {
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -316,51 +257,114 @@ function openProductModal(product = null) {
     title.textContent = product ? t('แก้ไขสินค้า', 'Edit Product') : t('เพิ่มสินค้าใหม่', 'Add New Product');
     submitBtn.textContent = product ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
     const catOptions = appData.categories.map(cat =>
-        `<option value="${cat.id}" ${product && product.category === cat.id ? 'selected' : ''}>${cat.en}</option>`
+        `<option value="${cat.id}" ${product && product.category === cat.id ? 'selected' : ''}>${adminLang === 'th' ? cat.th : cat.en}</option>`
     ).join('');
     const sizeOptions = ['S', 'M', 'L', 'XL', 'One Size'].map(s =>
         `<option value="${s}" ${product && product.sizes && product.sizes.includes(s) ? 'selected' : ''}>${s}</option>`
     ).join('');
+
+    // Build modal HTML with Auto-Translate button
     body.innerHTML = `
-        <div class="form-group"><label>${t('ชื่อสินค้า (ภาษาอังกฤษ)', 'Product Name (English)')}</label>
-            <input type="text" id="pNameEn" value="${product ? product.name_en : ''}" required></div>
+        <div class="form-group">
+            <label>${t('ชื่อภาษาไทย', 'Thai Name')}</label>
+            <input type="text" id="pNameTh" value="${product ? product.name_th : ''}" required>
+        </div>
+        <div class="form-group">
+            <label>${t('ชื่อภาษาอังกฤษ', 'English Name')}</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="pNameEn" value="${product ? product.name_en : ''}" required style="flex:1;">
+                <button type="button" class="btn btn-primary" id="autoTranslateBtn" style="padding:8px 16px;font-size:12px;white-space:nowrap;">
+                    <i class="fas fa-language"></i> ${t('แปลอัตโนมัติ', 'Auto-Translate')}
+                </button>
+            </div>
+            <small style="color:var(--gray);">${t('ป้อนภาษาอังกฤษ แล้วกดปุ่มเพื่อแปลเป็นไทย', 'Enter English and click button to translate to Thai')}</small>
+        </div>
         <div class="form-row">
             <div class="form-group"><label>${t('หมวดหมู่', 'Category')}</label><select id="pCategory">${catOptions}</select></div>
             <div class="form-group"><label>${t('ราคา (บาท)', 'Price (THB)')}</label><input type="number" id="pPrice" value="${product ? product.price : ''}" required min="0"></div>
         </div>
-        <div class="form-group"><label>${t('คำอธิบาย (ภาษาอังกฤษ)', 'Description (English)')}</label>
-            <textarea id="pDescEn">${product ? product.desc_en : ''}</textarea></div>
+        <div class="form-group">
+            <label>${t('คำอธิบายภาษาไทย', 'Thai Description')}</label>
+            <textarea id="pDescTh">${product ? product.desc_th : ''}</textarea>
+        </div>
+        <div class="form-group">
+            <label>${t('คำอธิบายภาษาอังกฤษ', 'English Description')}</label>
+            <textarea id="pDescEn">${product ? product.desc_en : ''}</textarea>
+        </div>
         <div class="form-row">
             <div class="form-group"><label>${t('ไอคอน/อีโมจิ', 'Icon/Emoji')}</label><input type="text" id="pImage" value="${product ? product.image : '👗'}" maxlength="4"></div>
-            <div class="form-group"><label>${t('ไซส์ (กด Ctrl เพื่อเลือกหลายรายการ)', 'Sizes (Ctrl+Click)')}</label>
-                <select id="pSizes" multiple style="height:auto;min-height:60px;">${sizeOptions}</select></div>
+            <div class="form-group"><label>${t('ไซส์ (กด Ctrl เพื่อเลือกหลายรายการ)', 'Sizes (Ctrl+Click)')}</label><select id="pSizes" multiple style="height:auto;min-height:60px;">${sizeOptions}</select></div>
         </div>
-        <p style="margin-top:12px;font-size:13px;color:var(--gray);"><i class="fas fa-info-circle"></i> ${t('ชื่อและคำอธิบายภาษาไทยจะถูกแปลโดยอัตโนมัติ', 'Thai name and description will be auto‑translated.')}</p>
     `;
+
     overlay.classList.add('open');
+
+    // --- AUTO-TRANSLATE BUTTON LOGIC ---
+    const translateBtn = document.getElementById('autoTranslateBtn');
+    if (translateBtn) {
+        translateBtn.addEventListener('click', async () => {
+            const nameEn = document.getElementById('pNameEn').value.trim();
+            const descEn = document.getElementById('pDescEn').value.trim();
+            
+            if (!nameEn && !descEn) {
+                toast(t('กรุณากรอกข้อมูลภาษาอังกฤษก่อน', 'Please enter English text first'), 'error');
+                return;
+            }
+
+            // Show loading state
+            translateBtn.disabled = true;
+            translateBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังแปล...', 'Translating...')}`;
+
+            try {
+                // Translate name
+                if (nameEn) {
+                    const nameTh = await translateText(nameEn, 'th');
+                    document.getElementById('pNameTh').value = nameTh;
+                }
+                // Translate description
+                if (descEn) {
+                    const descTh = await translateText(descEn, 'th');
+                    document.getElementById('pDescTh').value = descTh;
+                }
+                toast(t('แปลสำเร็จ ✅', 'Translation successful ✅'));
+            } catch (error) {
+                toast(t('การแปลล้มเหลว ❌', 'Translation failed ❌'), 'error');
+            } finally {
+                translateBtn.disabled = false;
+                translateBtn.innerHTML = `<i class="fas fa-language"></i> ${t('แปลอัตโนมัติ', 'Auto-Translate')}`;
+            }
+        });
+    }
+
+    // --- FORM SUBMIT ---
     form.onsubmit = async (e) => {
         e.preventDefault();
         const payload = {
+            name_th: document.getElementById('pNameTh').value.trim(),
             name_en: document.getElementById('pNameEn').value.trim(),
             category: document.getElementById('pCategory').value,
             price: parseFloat(document.getElementById('pPrice').value),
+            desc_th: document.getElementById('pDescTh').value.trim(),
             desc_en: document.getElementById('pDescEn').value.trim(),
             image: document.getElementById('pImage').value.trim() || '👗',
             sizes: Array.from(document.getElementById('pSizes').selectedOptions).map(opt => opt.value),
         };
-        if (editingItem) {
-            await updateProduct(editingItem.id, payload);
-            toast(t('อัปเดตสินค้าเรียบร้อย', 'Product updated'));
-        } else {
-            await addProduct(payload);
-            toast(t('เพิ่มสินค้าเรียบร้อย', 'Product added'));
+        if (editingItem) { 
+            await updateProduct(editingItem.id, { ...editingItem, ...payload }); 
+            toast(t('อัปเดตสินค้าเรียบร้อย', 'Product updated')); 
+        } else { 
+            await addProduct({ ...payload, id: Date.now() % 100000 }); 
+            toast(t('เพิ่มสินค้าเรียบร้อย', 'Product added')); 
         }
         overlay.classList.remove('open');
     };
+
+    // Close handlers
     document.getElementById('modalCloseBtn').onclick = () => overlay.classList.remove('open');
     overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
 }
 
+// --- CATEGORY MODAL (no translation needed, but keep it) ---
 function openCategoryModal(category = null) {
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -376,28 +380,22 @@ function openCategoryModal(category = null) {
         `<option value="${icon}" ${category && category.icon === icon ? 'selected' : ''}>${icon}</option>`
     ).join('');
     body.innerHTML = `
-        <div class="form-group"><label>${t('รหัสหมวดหมู่ (ภาษาอังกฤษ)', 'Category ID (English)')}</label>
-            <input type="text" id="cId" value="${category ? category.id : ''}" ${category ? 'readonly' : ''} required></div>
-        <div class="form-group"><label>${t('ชื่อหมวดหมู่ (ภาษาอังกฤษ)', 'Category Name (English)')}</label>
-            <input type="text" id="cEn" value="${category ? category.en : ''}" required></div>
+        <div class="form-group"><label>${t('รหัสหมวดหมู่ (ภาษาอังกฤษ)', 'Category ID (English)')}</label><input type="text" id="cId" value="${category ? category.id : ''}" ${category ? 'readonly' : ''} required></div>
+        <div class="form-group"><label>${t('ชื่อภาษาไทย', 'Thai Name')}</label><input type="text" id="cTh" value="${category ? category.th : ''}" required></div>
+        <div class="form-group"><label>${t('ชื่อภาษาอังกฤษ', 'English Name')}</label><input type="text" id="cEn" value="${category ? category.en : ''}" required></div>
         <div class="form-group"><label>${t('ไอคอน', 'Icon')}</label><select id="cIcon">${iconOptions}</select></div>
-        <p style="margin-top:12px;font-size:13px;color:var(--gray);"><i class="fas fa-info-circle"></i> ${t('ชื่อภาษาไทยจะถูกแปลโดยอัตโนมัติ', 'Thai name will be auto‑translated.')}</p>
     `;
     overlay.classList.add('open');
     form.onsubmit = async (e) => {
         e.preventDefault();
         const payload = {
             id: document.getElementById('cId').value.trim().toLowerCase().replace(/\s+/g, '-'),
+            th: document.getElementById('cTh').value.trim(),
             en: document.getElementById('cEn').value.trim(),
             icon: document.getElementById('cIcon').value,
         };
-        if (category) {
-            await updateCategory(category.id, payload);
-            toast(t('อัปเดตหมวดหมู่เรียบร้อย', 'Category updated'));
-        } else {
-            await addCategory(payload);
-            toast(t('เพิ่มหมวดหมู่เรียบร้อย', 'Category added'));
-        }
+        if (category) { await updateCategory(category.id, payload); toast(t('อัปเดตหมวดหมู่เรียบร้อย', 'Category updated')); }
+        else { await addCategory(payload); toast(t('เพิ่มหมวดหมู่เรียบร้อย', 'Category added')); }
         overlay.classList.remove('open');
     };
     document.getElementById('modalCloseBtn').onclick = () => overlay.classList.remove('open');
@@ -434,5 +432,4 @@ document.getElementById('adminLogoutBtn').addEventListener('click', adminLogout)
     await loadDataFromDB();
     renderAdmin();
     console.log('✅ Admin panel ready – API:', API_URL);
-    console.log('🤖 Auto‑translation (EN→TH) enabled for products & categories.');
 })();
