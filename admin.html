@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Admin panel overrides */
         .admin-panel {
             display: flex !important;
             position: relative;
@@ -16,7 +15,9 @@
             height: 100vh;
             background: var(--cream);
         }
-        .admin-toggle { display: none !important; }
+        .admin-toggle {
+            display: none !important;
+        }
         .admin-header .back-link {
             color: var(--gray);
             transition: var(--transition);
@@ -26,8 +27,12 @@
             align-items: center;
             gap: 6px;
         }
-        .admin-header .back-link:hover { color: var(--gold); }
-        .admin-login { height: 100vh; }
+        .admin-header .back-link:hover {
+            color: var(--gold);
+        }
+        .admin-login {
+            height: 100vh;
+        }
         .admin-lang-currency {
             display: flex;
             align-items: center;
@@ -55,24 +60,97 @@
             border-color: var(--gold);
             background: rgba(201,168,76,0.08);
         }
-        .admin-lang-currency .divider { color: var(--light-gray); }
-        /* Hide Google Translate banner */
-        .goog-te-banner-frame { display: none !important; }
-        body { top: 0 !important; }
+        .admin-lang-currency .divider {
+            color: var(--light-gray);
+        }
+        .image-upload-container {
+            border: 2px dashed var(--light-gray);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+        .image-upload-container:hover {
+            border-color: var(--gold);
+            background: rgba(201,168,76,0.04);
+        }
+        .image-upload-container img {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: var(--radius-sm);
+            margin: 10px auto;
+            display: block;
+        }
+        .image-upload-container .placeholder-text {
+            color: var(--gray);
+            font-size: 14px;
+        }
+        .image-upload-container .placeholder-text i {
+            font-size: 40px;
+            display: block;
+            margin-bottom: 8px;
+            color: var(--light-gray);
+        }
+        .image-upload-container input[type="file"] {
+            display: none;
+        }
+        .image-upload-container .remove-image {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255,0,0,0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .image-upload-container.has-image .remove-image {
+            display: flex;
+        }
+        .image-upload-container .upload-progress {
+            display: none;
+            margin-top: 10px;
+        }
+        .image-upload-container .upload-progress.active {
+            display: block;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--light-gray);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-bar .progress-fill {
+            height: 100%;
+            background: var(--gold);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .upload-status {
+            font-size: 12px;
+            color: var(--gray);
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
-
-    <!-- ADMIN PANEL -->
     <div class="admin-panel" id="adminPanel">
         <div class="admin-header">
             <h2><i class="fas fa-crown" style="color:var(--gold);"></i> A3<span style="color:var(--gold);">Glam & Fashion</span> <span style="font-size:14px;color:var(--gray);font-weight:400;">| แผงควบคุม</span></h2>
             <div style="display:flex;align-items:center;gap:16px;">
-                <!-- Language & Currency dropdowns -->
                 <div class="admin-lang-currency">
                     <select id="adminLangSelect">
                         <option value="th">ไทย</option>
-                        <option value="en">English</option>
+                        <option value="en">EN</option>
                     </select>
                     <span class="divider">|</span>
                     <select id="adminCurrencySelect">
@@ -91,13 +169,10 @@
                 <div class="menu-item" data-tab="categories"><i class="fas fa-tags"></i> <span>หมวดหมู่</span></div>
                 <div class="menu-item" data-tab="orders"><i class="fas fa-receipt"></i> <span>คำสั่งซื้อ</span></div>
             </nav>
-            <div class="admin-content" id="adminContent">
-                <!-- Rendered by admin.js -->
-            </div>
+            <div class="admin-content" id="adminContent"></div>
         </div>
     </div>
 
-    <!-- MODAL -->
     <div class="modal-overlay" id="modalOverlay">
         <div class="modal-content" id="modalContent">
             <button class="close-modal" id="modalCloseBtn"><i class="fas fa-times"></i></button>
@@ -109,54 +184,7 @@
         </div>
     </div>
 
-    <!-- TOAST -->
     <div class="toast-container" id="toastContainer"></div>
-
-    <!-- Admin JavaScript -->
     <script src="admin.js"></script>
-
-    <!-- Google Translate Widget -->
-    <div id="google_translate_element" style="display:none;"></div>
-    <script type="text/javascript">
-        function googleTranslateElementInit() {
-            new google.translate.TranslateElement({
-                pageLanguage: 'th',
-                includedLanguages: 'th,en',
-                autoDisplay: false,
-                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
-            }, 'google_translate_element');
-        }
-
-        function translatePage(lang) {
-            const select = document.querySelector('.goog-te-combo');
-            if (select) {
-                select.value = lang;
-                select.dispatchEvent(new Event('change'));
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const langSelect = document.getElementById('adminLangSelect');
-            if (langSelect) {
-                langSelect.addEventListener('change', function(e) {
-                    const lang = e.target.value;
-                    if (lang === 'en') {
-                        if (typeof google !== 'undefined' && google.translate) {
-                            translatePage('en');
-                        } else {
-                            setTimeout(() => translatePage('en'), 1000);
-                        }
-                    } else {
-                        if (typeof google !== 'undefined' && google.translate) {
-                            translatePage('th');
-                        } else {
-                            setTimeout(() => translatePage('th'), 1000);
-                        }
-                    }
-                });
-            }
-        });
-    </script>
-    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>
 </html>

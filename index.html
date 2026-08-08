@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>A3 Glam & Fashion</title>
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- External CSS -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,13 +22,11 @@
             </nav>
             <div class="header-actions">
                 <div class="lang-currency">
-                    <!-- Language dropdown – triggers Google Translate -->
                     <select id="langSelect" class="lang-currency-select">
                         <option value="th">ไทย</option>
-                        <option value="en">English</option>
+                        <option value="en">EN</option>
                     </select>
                     <span class="divider">|</span>
-                    <!-- Currency dropdown – independent -->
                     <select id="currencySelect" class="lang-currency-select">
                         <option value="thb">฿</option>
                         <option value="usd">$</option>
@@ -136,52 +131,6 @@
     <!-- TOAST CONTAINER -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- External JavaScript -->
     <script src="app.js"></script>
-
-    <!-- Google Translate Widget -->
-    <div id="google_translate_element" style="display:none;"></div>
-    <script type="text/javascript">
-        function googleTranslateElementInit() {
-            new google.translate.TranslateElement({
-                pageLanguage: 'th',
-                includedLanguages: 'th,en',
-                autoDisplay: false,
-                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
-            }, 'google_translate_element');
-        }
-
-        function translatePage(lang) {
-            const select = document.querySelector('.goog-te-combo');
-            if (select) {
-                select.value = lang;
-                select.dispatchEvent(new Event('change'));
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const langSelect = document.getElementById('langSelect');
-            if (langSelect) {
-                langSelect.addEventListener('change', function(e) {
-                    const lang = e.target.value;
-                    if (lang === 'en') {
-                        if (typeof google !== 'undefined' && google.translate) {
-                            translatePage('en');
-                        } else {
-                            setTimeout(() => translatePage('en'), 1000);
-                        }
-                    } else {
-                        // Back to Thai
-                        if (typeof google !== 'undefined' && google.translate) {
-                            translatePage('th');
-                        } else {
-                            setTimeout(() => translatePage('th'), 1000);
-                        }
-                    }
-                });
-            }
-        });
-    </script>
-    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>
 </html>

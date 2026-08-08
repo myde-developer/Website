@@ -18,7 +18,7 @@ const sequelize = new Sequelize(process.env.DATABASE_URL, {
   dialectOptions: {
     ssl: {
       require: true,
-      rejectUnauthorized: false, // Required for Neon
+      rejectUnauthorized: false,
     },
   },
   logging: false,
@@ -58,7 +58,7 @@ const Order = sequelize.define('Order', {
   items: { type: DataTypes.JSONB, defaultValue: [] },
 });
 
-// --- SEED DATABASE (runs only if empty) ---
+// --- SEED DATABASE ---
 async function seedDatabase() {
   const adminCount = await Admin.count();
   if (adminCount === 0) {
@@ -184,13 +184,9 @@ app.post('/api/orders', async (req, res) => {
   try {
     await sequelize.authenticate();
     console.log('✅ Neon PostgreSQL connection established.');
-
-    // 🔥 FIX: Await table creation before seeding
     await sequelize.sync({ force: false });
     console.log('✅ Tables synced.');
-
     await seedDatabase();
-
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   } catch (error) {
     console.error('❌ Unable to connect to the database:', error);

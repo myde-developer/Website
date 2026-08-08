@@ -1,5 +1,5 @@
 // ============================================
-// 🔥 UPDATE THIS URL with your deployed backend
+// 🔥 UPDATE API_URL with your deployed backend
 // ============================================
 const API_URL = 'https://website-219o.onrender.com/api';
 
@@ -9,10 +9,6 @@ let currentLang = 'th';
 let currentCurrency = 'thb';
 let cart = [];
 let selectedCategory = 'all';
-
-// --- LIBRE TRANSLATE CONFIG ---
-const LIBRE_URL = 'https://libretranslate.com/translate';
-let translationCache = JSON.parse(localStorage.getItem('lt_cache') || '{}');
 
 // --- API HELPERS ---
 async function apiFetch(endpoint, options = {}) {
@@ -41,100 +37,8 @@ async function saveOrder(order) {
     await loadDataFromDB();
 }
 
-// --- LIBRE TRANSLATE FUNCTION ---
-async function translateText(text, targetLang) {
-    if (targetLang === 'en') return text;
-    const cacheKey = `${text}|${targetLang}`;
-    if (translationCache[cacheKey]) return translationCache[cacheKey];
-
-    try {
-        const response = await fetch(LIBRE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                q: text,
-                source: 'en',
-                target: targetLang,
-                format: 'text'
-            })
-        });
-        const data = await response.json();
-        const translated = data.translatedText || text;
-        translationCache[cacheKey] = translated;
-        localStorage.setItem('lt_cache', JSON.stringify(translationCache));
-        return translated;
-    } catch (e) {
-        console.warn('LibreTranslate failed:', e);
-        return text;
-    }
-}
-
-// --- UI TEXT MAP (for static UI elements) ---
-const uiTexts = {
-    '#heroDesc': "Discover Thailand's premier fashion collection, from evening gowns to luxury accessories, nationwide delivery.",
-    '#heroShopBtn': 'Shop Now',
-    '#heroCollectionBtn': 'View Collection',
-    '#categorySubtitle': 'Choose your category',
-    '#productSubtitle': 'Latest Collection',
-    '#checkoutBtn': 'Checkout',
-    '.cart-drawer .header h3': 'Shopping Cart',
-    '.cart-empty p': 'Your cart is empty',
-    '.nav-links a[data-section="home"]': 'Home',
-    '.nav-links a[data-section="products"]': 'Products',
-    '.nav-links a[data-section="categories"]': 'Categories',
-    '.nav-links a[data-section="about"]': 'About',
-    // Footer headers
-    '.footer .footer-grid > div:nth-child(2) h4': 'Products',
-    '.footer .footer-grid > div:nth-child(3) h4': 'Services',
-    '.footer .footer-grid > div:nth-child(4) h4': 'About',
-};
-
-// --- APPLY TRANSLATIONS TO UI ---
-async function applyUITranslations(targetLang) {
-    if (targetLang === 'en') {
-        // Reset to English (using static text from uiTexts)
-        for (let [selector, englishText] of Object.entries(uiTexts)) {
-            const elements = document.querySelectorAll(selector);
-            if (!elements.length) continue;
-            elements.forEach(el => {
-                // Only reset if it contains the translated text or English text
-                if (el.textContent.trim() === englishText.trim() || el.innerHTML.includes(englishText)) {
-                    el.textContent = englishText;
-                }
-            });
-        }
-        return;
-    }
-
-    // Translate to Thai
-    for (let [selector, englishText] of Object.entries(uiTexts)) {
-        const elements = document.querySelectorAll(selector);
-        if (!elements.length) continue;
-        const translated = await translateText(englishText, targetLang);
-        elements.forEach(el => {
-            // Handle text nodes directly to preserve icons
-            const childNodes = el.childNodes;
-            let found = false;
-            for (let node of childNodes) {
-                if (node.nodeType === Node.TEXT_NODE && node.textContent.trim() === englishText.trim()) {
-                    node.textContent = translated;
-                    found = true;
-                    break;
-                }
-            }
-            // Fallback: replace innerHTML if text node not found
-            if (!found && el.innerHTML.includes(englishText)) {
-                el.innerHTML = el.innerHTML.replace(englishText, translated);
-            }
-        });
-    }
-}
-
-// --- UTILITY FUNCTIONS ---
-function t(thText, enText) {
-    // Used for static fallback and initial render
-    return currentLang === 'th' ? thText : enText;
-}
+// --- UTILITY ---
+function t(thText, enText) { return currentLang === 'th' ? thText : enText; }
 
 function formatPrice(amount) {
     if (currentCurrency === 'thb') return '฿' + amount.toLocaleString();
@@ -198,7 +102,13 @@ function renderProducts() {
     }
     grid.innerHTML = filtered.map(p => `
         <div class="product-card" data-id="${p.id}">
-            <div class="image"><span style="font-size:56px;">${p.image || '👗'}</span><span class="tag">${getCategoryName(p.category)}</span></div>
+            <div class="image">
+                ${p.image && p.image.startsWith('http') ? 
+                    `<img src="${p.image}" alt="${getProductName(p)}" style="width:100%;height:100%;object-fit:cover;">` : 
+                    `<span style="font-size:56px;">${p.image || '👗'}</span>`
+                }
+                <span class="tag">${getCategoryName(p.category)}</span>
+            </div>
             <div class="info">
                 <div class="category-label">${getCategoryName(p.category)}</div>
                 <div class="name">${getProductName(p)}</div>
@@ -257,7 +167,7 @@ function renderCart() {
         const price = p.price * item.qty;
         total += price;
         html += `<div class="cart-item">
-            <div class="thumb">${p.image || '👗'}</div>
+            <div class="thumb">${p.image && p.image.startsWith('http') ? `<img src="${p.image}" style="width:100%;height:100%;object-fit:cover;border-radius:4px;">` : (p.image || '👗')}</div>
             <div class="details">
                 <div class="name">${getProductName(p)}</div>
                 <div class="price">${formatPrice(p.price)}</div>
@@ -318,7 +228,9 @@ function showProductDetail(id) {
     submitBtn.style.display = 'none';
     const sizes = p.sizes ? p.sizes.join(', ') : '-';
     body.innerHTML = `
-        <div style="text-align:center;font-size:72px;margin:8px 0 16px;">${p.image || '👗'}</div>
+        <div style="text-align:center;font-size:72px;margin:8px 0 16px;">
+            ${p.image && p.image.startsWith('http') ? `<img src="${p.image}" style="max-width:100%;max-height:300px;border-radius:8px;">` : (p.image || '👗')}
+        </div>
         <p style="color:var(--gray);margin-bottom:12px;line-height:1.7;">${getProductDesc(p)}</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px;margin-bottom:8px;">
             <div><strong>${t('หมวดหมู่', 'Category')}:</strong> ${getCategoryName(p.category)}</div>
@@ -360,11 +272,22 @@ async function checkout() {
 function openCart() { document.getElementById('cartOverlay').classList.add('open'); document.getElementById('cartDrawer').classList.add('open'); }
 function closeCart() { document.getElementById('cartOverlay').classList.remove('open'); document.getElementById('cartDrawer').classList.remove('open'); }
 
-// --- UPDATE HEADER TEXT (Static fallback) ---
+// --- RENDER ALL ---
+function renderAll() {
+    renderCategories();
+    renderProducts();
+    renderCart();
+    updateCategoryFilter();
+    updateProductResults();
+    updateHeaderText();
+    document.getElementById('langSelect').value = currentLang;
+    document.getElementById('currencySelect').value = currentCurrency;
+}
+
 function updateHeaderText() {
     document.getElementById('heroDesc').textContent = t(
         'ค้นพบคอลเลกชันแฟชั่นชั้นนำของไทย ตั้งแต่ชุดราตรีไปจนถึงเครื่องประดับสุดหรู พร้อมจัดส่งทั่วประเทศ',
-        "Discover Thailand's premier fashion collection, from evening gowns to luxury accessories, nationwide delivery."
+        'Discover Thailand\'s premier fashion collection, from evening gowns to luxury accessories, nationwide delivery.'
     );
     document.getElementById('heroShopBtn').innerHTML = `<i class="fas fa-shopping-bag"></i> ${t('ช้อปเลย', 'Shop Now')}`;
     document.getElementById('heroCollectionBtn').textContent = t('ดูคอลเลกชัน', 'View Collection');
@@ -378,39 +301,18 @@ function updateHeaderText() {
     updateProductResults();
 }
 
-// --- RENDER ALL ---
-async function renderAll() {
-    renderCategories();
-    renderProducts();
-    renderCart();
-    updateCategoryFilter();
-    updateProductResults();
-    updateHeaderText();
-    
-    // Sync dropdowns
-    document.getElementById('langSelect').value = currentLang;
-    document.getElementById('currencySelect').value = currentCurrency;
-
-    // If Thai is selected, apply LibreTranslate translations
-    if (currentLang === 'th') {
-        await applyUITranslations('th');
-    }
-}
-
 // --- EVENT LISTENERS ---
 document.getElementById('cartBtn').addEventListener('click', openCart);
 document.getElementById('cartCloseBtn').addEventListener('click', closeCart);
 document.getElementById('cartOverlay').addEventListener('click', closeCart);
 document.getElementById('checkoutBtn').addEventListener('click', checkout);
 
-// Language & Currency dropdowns
-document.getElementById('langSelect').addEventListener('change', async (e) => {
+document.getElementById('langSelect').addEventListener('change', (e) => {
     currentLang = e.target.value;
-    await renderAll(); // renderAll now handles calling applyUITranslations
+    renderAll();
 });
-
-document.getElementById('currencySelect').addEventListener('change', () => {
-    currentCurrency = document.getElementById('currencySelect').value;
+document.getElementById('currencySelect').addEventListener('change', (e) => {
+    currentCurrency = e.target.value;
     renderAll();
 });
 
@@ -422,7 +324,6 @@ document.getElementById('filterCategory').addEventListener('change', () => {
 });
 document.getElementById('sortProducts').addEventListener('change', renderProducts);
 
-// Mobile menu
 document.getElementById('mobileMenuBtn').addEventListener('click', () => {
     const nav = document.getElementById('navLinks');
     nav.style.display = nav.style.display === 'flex' ? 'none' : 'flex';
@@ -468,7 +369,6 @@ document.addEventListener('keydown', (e) => {
 // --- INIT ---
 (async function init() {
     await loadDataFromDB();
-    await renderAll();
+    renderAll();
     console.log('✅ Storefront ready – API:', API_URL);
-    console.log('🔤 LibreTranslate integration active');
 })();

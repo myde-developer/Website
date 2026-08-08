@@ -3,16 +3,24 @@
 // ============================================
 const API_URL = 'https://website-219o.onrender.com/api';
 
+// ============================================
+// 🔥 CLOUDINARY CONFIG - Replace with your credentials
+// ============================================
+const CLOUDINARY_CONFIG = {
+    cloudName: 'Root',        // Replace with your Cloudinary cloud name
+    uploadPreset: 'a3 images',  // Replace with your upload preset
+    apiKey: '726651957123698'              // Replace with your API key (optional for unsigned uploads)
+};
+
 // --- STATE ---
 let appData = { products: [], categories: [], orders: [] };
 let adminLoggedIn = false;
 let currentAdminTab = 'dashboard';
 let editingItem = null;
 let authToken = null;
-
-// --- LANGUAGE & CURRENCY STATE ---
 let adminLang = 'th';
 let adminCurrency = 'thb';
+let uploadedImageUrl = null;
 
 // --- TRANSLATION HELPER ---
 function t(thText, enText) {
@@ -47,7 +55,35 @@ async function translateText(text, targetLang = 'th') {
     } catch (error) {
         console.error('Translation failed:', error);
         toast('⚠️ ' + t('ไม่สามารถแปลได้ โปรดลองอีกครั้ง', 'Translation failed, please try again'), 'error');
-        return text; // fallback to original
+        return text;
+    }
+}
+
+// ============================================
+// 🔥 CLOUDINARY IMAGE UPLOAD
+// ============================================
+async function uploadImageToCloudinary(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
+    formData.append('cloud_name', CLOUDINARY_CONFIG.cloudName);
+    formData.append('folder', 'a3-products');
+
+    try {
+        const response = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/image/upload`,
+            {
+                method: 'POST',
+                body: formData
+            }
+        );
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.secure_url;
+    } catch (error) {
+        console.error('Upload failed:', error);
+        toast('❌ ' + t('อัปโหลดรูปภาพล้มเหลว', 'Image upload failed'), 'error');
+        return null;
     }
 }
 
@@ -136,7 +172,6 @@ function renderAdmin() {
         case 'orders': renderOrdersAdmin(content); break;
         default: content.innerHTML = '<p>'+t('เลือกเมนู', 'Select menu')+'</p>';
     }
-    // Sync dropdowns
     document.getElementById('adminLangSelect').value = adminLang;
     document.getElementById('adminCurrencySelect').value = adminCurrency;
 }
@@ -146,8 +181,8 @@ function renderLogin() {
     content.innerHTML = `<div class="admin-login"><div class="admin-login-box">
         <h3><i class="fas fa-crown" style="color:var(--gold);"></i> Admin</h3>
         <p class="sub">${t('เข้าสู่ระบบแผงควบคุม', 'Admin Login')}</p>
-        <input type="text" id="adminUser" value="admin">
-        <input type="password" id="adminPass" value="admin123">
+        <input type="text" id="adminUser" placeholder="Input Name or Email">
+        <input type="password" id="adminPass" placeholder="Input Password">
         <button class="login-btn" id="adminLoginBtn">${t('เข้าสู่ระบบ', 'Login')}</button>
     </div></div>`;
     document.getElementById('adminLoginBtn').addEventListener('click', () => {
@@ -246,7 +281,7 @@ function renderOrdersAdmin(content) {
     content.innerHTML = html;
 }
 
-// --- MODALS WITH LIBRETRANSLATE INTEGRATION ---
+// --- MODALS WITH IMAGE UPLOAD ---
 function openProductModal(product = null) {
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
@@ -254,8 +289,11 @@ function openProductModal(product = null) {
     const submitBtn = document.getElementById('modalSubmitBtn');
     const form = document.getElementById('modalForm');
     editingItem = product;
+    uploadedImageUrl = product ? product.image : null;
+    
     title.textContent = product ? t('แก้ไขสินค้า', 'Edit Product') : t('เพิ่มสินค้าใหม่', 'Add New Product');
     submitBtn.textContent = product ? t('อัปเดต', 'Update') : t('บันทึก', 'Save');
+    
     const catOptions = appData.categories.map(cat =>
         `<option value="${cat.id}" ${product && product.category === cat.id ? 'selected' : ''}>${adminLang === 'th' ? cat.th : cat.en}</option>`
     ).join('');
@@ -263,7 +301,10 @@ function openProductModal(product = null) {
         `<option value="${s}" ${product && product.sizes && product.sizes.includes(s) ? 'selected' : ''}>${s}</option>`
     ).join('');
 
-    // Build modal HTML with Auto-Translate button
+    const imageHtml = uploadedImageUrl && uploadedImageUrl.startsWith('http') ? 
+        `<img src="${uploadedImageUrl}" alt="Product image" style="max-width:200px;max-height:200px;border-radius:8px;margin:10px auto;">` :
+        `<div class="placeholder-text"><i class="fas fa-image"></i> ${t('คลิกเพื่ออัปโหลดรูปภาพ', 'Click to upload image')}</div>`;
+
     body.innerHTML = `
         <div class="form-group">
             <label>${t('ชื่อภาษาไทย', 'Thai Name')}</label>
@@ -279,6 +320,23 @@ function openProductModal(product = null) {
             </div>
             <small style="color:var(--gray);">${t('ป้อนภาษาอังกฤษ แล้วกดปุ่มเพื่อแปลเป็นไทย', 'Enter English and click button to translate to Thai')}</small>
         </div>
+        
+        <div class="form-group">
+            <label>${t('รูปภาพสินค้า', 'Product Image')}</label>
+            <div class="image-upload-container ${uploadedImageUrl && uploadedImageUrl.startsWith('http') ? 'has-image' : ''}" id="imageUploadContainer">
+                <input type="file" id="imageInput" accept="image/*">
+                <div id="imagePreview">${imageHtml}</div>
+                <button class="remove-image" id="removeImageBtn" style="${uploadedImageUrl && uploadedImageUrl.startsWith('http') ? 'display:flex;' : 'display:none;'}">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="upload-progress" id="uploadProgress">
+                    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                    <div class="upload-status" id="uploadStatus">${t('กำลังอัปโหลด...', 'Uploading...')}</div>
+                </div>
+            </div>
+            <small style="color:var(--gray);">${t('คลิกเพื่อเลือกรูปภาพ (JPG, PNG, WebP) ขนาดสูงสุด 5MB', 'Click to select image (JPG, PNG, WebP) max 5MB')}</small>
+        </div>
+
         <div class="form-row">
             <div class="form-group"><label>${t('หมวดหมู่', 'Category')}</label><select id="pCategory">${catOptions}</select></div>
             <div class="form-group"><label>${t('ราคา (บาท)', 'Price (THB)')}</label><input type="number" id="pPrice" value="${product ? product.price : ''}" required min="0"></div>
@@ -292,14 +350,69 @@ function openProductModal(product = null) {
             <textarea id="pDescEn">${product ? product.desc_en : ''}</textarea>
         </div>
         <div class="form-row">
-            <div class="form-group"><label>${t('ไอคอน/อีโมจิ', 'Icon/Emoji')}</label><input type="text" id="pImage" value="${product ? product.image : '👗'}" maxlength="4"></div>
-            <div class="form-group"><label>${t('ไซส์ (กด Ctrl เพื่อเลือกหลายรายการ)', 'Sizes (Ctrl+Click)')}</label><select id="pSizes" multiple style="height:auto;min-height:60px;">${sizeOptions}</select></div>
+            <div class="form-group"><label>${t('ไซส์ (กด Ctrl เพื่อเลือกหลายรายการ)', 'Sizes (Ctrl+Click)')}</label>
+                <select id="pSizes" multiple style="height:auto;min-height:60px;">${sizeOptions}</select>
+            </div>
         </div>
     `;
 
     overlay.classList.add('open');
 
-    // --- AUTO-TRANSLATE BUTTON LOGIC ---
+    // --- IMAGE UPLOAD HANDLERS ---
+    const uploadContainer = document.getElementById('imageUploadContainer');
+    const fileInput = document.getElementById('imageInput');
+    const previewDiv = document.getElementById('imagePreview');
+    const removeBtn = document.getElementById('removeImageBtn');
+    const progressDiv = document.getElementById('uploadProgress');
+    const progressFill = document.getElementById('progressFill');
+    const statusText = document.getElementById('uploadStatus');
+
+    uploadContainer.addEventListener('click', (e) => {
+        if (e.target === removeBtn || e.target.closest('.remove-image')) return;
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast(t('กรุณาเลือกรูปภาพเท่านั้น', 'Please select an image file'), 'error');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast(t('ขนาดไฟล์ต้องไม่เกิน 5MB', 'File size must be under 5MB'), 'error');
+            return;
+        }
+
+        progressDiv.classList.add('active');
+        progressFill.style.width = '0%';
+        statusText.textContent = t('กำลังอัปโหลด...', 'Uploading...');
+        uploadContainer.style.borderColor = 'var(--gold)';
+
+        const url = await uploadImageToCloudinary(file);
+        
+        if (url) {
+            uploadedImageUrl = url;
+            previewDiv.innerHTML = `<img src="${url}" alt="Product image" style="max-width:200px;max-height:200px;border-radius:8px;margin:10px auto;">`;
+            removeBtn.style.display = 'flex';
+            uploadContainer.classList.add('has-image');
+            toast(t('อัปโหลดรูปภาพสำเร็จ ✅', 'Image uploaded successfully ✅'));
+        }
+        
+        progressDiv.classList.remove('active');
+        uploadContainer.style.borderColor = '';
+    });
+
+    removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        uploadedImageUrl = null;
+        previewDiv.innerHTML = `<div class="placeholder-text"><i class="fas fa-image"></i> ${t('คลิกเพื่ออัปโหลดรูปภาพ', 'Click to upload image')}</div>`;
+        removeBtn.style.display = 'none';
+        uploadContainer.classList.remove('has-image');
+        fileInput.value = '';
+    });
+
+    // --- AUTO-TRANSLATE BUTTON ---
     const translateBtn = document.getElementById('autoTranslateBtn');
     if (translateBtn) {
         translateBtn.addEventListener('click', async () => {
@@ -311,17 +424,14 @@ function openProductModal(product = null) {
                 return;
             }
 
-            // Show loading state
             translateBtn.disabled = true;
             translateBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังแปล...', 'Translating...')}`;
 
             try {
-                // Translate name
                 if (nameEn) {
                     const nameTh = await translateText(nameEn, 'th');
                     document.getElementById('pNameTh').value = nameTh;
                 }
-                // Translate description
                 if (descEn) {
                     const descTh = await translateText(descEn, 'th');
                     document.getElementById('pDescTh').value = descTh;
@@ -346,9 +456,10 @@ function openProductModal(product = null) {
             price: parseFloat(document.getElementById('pPrice').value),
             desc_th: document.getElementById('pDescTh').value.trim(),
             desc_en: document.getElementById('pDescEn').value.trim(),
-            image: document.getElementById('pImage').value.trim() || '👗',
+            image: uploadedImageUrl || '👗',
             sizes: Array.from(document.getElementById('pSizes').selectedOptions).map(opt => opt.value),
         };
+        
         if (editingItem) { 
             await updateProduct(editingItem.id, { ...editingItem, ...payload }); 
             toast(t('อัปเดตสินค้าเรียบร้อย', 'Product updated')); 
@@ -359,12 +470,11 @@ function openProductModal(product = null) {
         overlay.classList.remove('open');
     };
 
-    // Close handlers
     document.getElementById('modalCloseBtn').onclick = () => overlay.classList.remove('open');
     overlay.onclick = (e) => { if (e.target === overlay) overlay.classList.remove('open'); };
 }
 
-// --- CATEGORY MODAL (no translation needed, but keep it) ---
+// --- CATEGORY MODAL ---
 function openCategoryModal(category = null) {
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
