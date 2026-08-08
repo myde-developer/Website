@@ -13,6 +13,10 @@ let adminLang = localStorage.getItem('adminLang') || 'th';
 let adminCurrency = localStorage.getItem('adminCurrency') || 'thb';
 let uploadedImageUrl = null;
 let searchTerm = '';
+// --- EXCHANGE RATE STATE ---
+let exchangeRate = 35; // fallback
+let rateLastUpdated = null;
+const RATE_CACHE_MINUTES = 5;
 
 if (authToken) adminLoggedIn = true;
 
@@ -21,16 +25,58 @@ function t(thText, enText) {
 }
 
 function formatPrice(amount) {
-    if (adminCurrency === 'thb') return '฿' + amount.toLocaleString();
-    const usd = Math.round(amount / 35);
-    return '$' + usd.toLocaleString();
+    if (adminCurrency === 'thb') {
+        return '฿' + amount.toLocaleString();
+    } else {
+        const rate = getExchangeRate(); // Live rate
+        const usdAmount = amount * rate;
+        return '$' + usdAmount.toFixed(2);
+    }
+}
+
+// ============================================
+// 🔥 LIVE EXCHANGE RATE
+// ============================================
+async function fetchExchangeRate() {
+    try {
+        const response = await fetch('https://api.frankfurter.app/latest?from=THB&to=USD');
+        if (!response.ok) throw new Error('Network error');
+        const data = await response.json();
+        if (data.rates && data.rates.USD) {
+            exchangeRate = data.rates.USD;
+            rateLastUpdated = Date.now();
+            console.log(`✅ Admin exchange rate: 1 THB = ${exchangeRate} USD`);
+            return exchangeRate;
+        }
+    } catch (e) {
+        console.warn('⚠️ Using fallback exchange rate:', e);
+        return exchangeRate;
+    }
+}
+
+function getExchangeRate() {
+    if (!rateLastUpdated || (Date.now() - rateLastUpdated) > RATE_CACHE_MINUTES * 60 * 1000) {
+        // Fetch in background, but return current rate immediately
+        fetchExchangeRate();
+    }
+    return exchangeRate;
 }
 
 // ============================================
 // 🔥 TRANSLATE API
 // ============================================
+// ============================================
+// 🔥 TRANSLATE WITH CACHE & FALLBACK
+// ============================================
+const translationCache = {};
+
 async function translateText(text, targetLang = 'th') {
     if (!text.trim()) return text;
+    // Check cache
+    const cacheKey = text + '_' + targetLang;
+    if (translationCache[cacheKey]) {
+        return translationCache[cacheKey];
+    }
     try {
         const response = await fetch('https://libretranslate.com/translate', {
             method: 'POST',
@@ -42,18 +88,25 @@ async function translateText(text, targetLang = 'th') {
                 format: 'text'
             })
         });
-        if (!response.ok) throw new Error('Translation API error');
+        if (!response.ok) {
+            // If rate limited (429) or other error, use fallback
+            console.warn('Translation API error, using fallback:', response.status);
+            toast('⚠️ ' + t('การแปลชั่วคราวไม่พร้อม ใช้ข้อความภาษาอังกฤษ', 'Translation temporarily unavailable, using English'), 'error');
+            return text;
+        }
         const data = await response.json();
-        return data.translatedText;
+        const translated = data.translatedText || text;
+        // Cache the result
+        translationCache[cacheKey] = translated;
+        return translated;
     } catch (error) {
         console.error('Translation failed:', error);
-        toast('⚠️ ' + t('ไม่สามารถแปลได้', 'Translation failed'), 'error');
+        toast('⚠️ ' + t('ไม่สามารถแปลได้ ใช้ข้อความภาษาอังกฤษ', 'Translation failed, using English'), 'error');
         return text;
     }
 }
-
 // ============================================
-// 🔥 IMAGE UPLOAD
+// 🔥 IMAGE UPLOAD WITH BETTER ERROR HANDLING
 // ============================================
 async function uploadImage(file) {
     const formData = new FormData();
@@ -65,12 +118,24 @@ async function uploadImage(file) {
             headers: { 'Authorization': `Bearer ${authToken}` },
             body: formData
         });
-        if (!response.ok) throw new Error('Upload failed');
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Upload error:', errorText);
+            // Try to parse JSON error
+            try {
+                const errorJson = JSON.parse(errorText);
+                throw new Error(errorJson.error || 'Upload failed');
+            } catch (e) {
+                throw new Error('Upload failed: ' + response.status);
+            }
+        }
         const data = await response.json();
+        if (!data.url) throw new Error('No URL returned');
+        toast(t('อัปโหลดรูปภาพสำเร็จ ✅', 'Image uploaded successfully ✅'));
         return data.url;
     } catch (error) {
         console.error('Upload failed:', error);
-        toast('❌ ' + t('อัปโหลดล้มเหลว', 'Upload failed'), 'error');
+        toast('❌ ' + t('อัปโหลดล้มเหลว: ', 'Upload failed: ') + error.message, 'error');
         return null;
     }
 }
@@ -540,42 +605,57 @@ function renderOrdersAdmin(content) {
 }
 
 // ============================================
-// 🔥 PRODUCT MODAL - FULL PAGE VERSION
+// 🔥 PRODUCT MODAL (with Live Price Conversion)
 // ============================================
 function openProductModal(product = null) {
     console.log('📦 Opening product modal...', product ? 'Edit' : 'Add');
-    
+
     const overlay = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
     const body = document.getElementById('modalBody');
     const submitBtn = document.getElementById('modalSubmitBtn');
     const form = document.getElementById('modalForm');
-    
+
     if (!overlay) {
         console.error('❌ Modal overlay not found!');
         toast('❌ ไม่พบโมดัล', 'error');
         return;
     }
-    
+
     editingItem = product;
     uploadedImageUrl = product ? product.image : null;
-    
+
     title.textContent = product ? t('แก้ไขสินค้า', 'Edit Product') : t('เพิ่มสินค้าใหม่', 'Add New Product');
-    submitBtn.innerHTML = product ? 
-        `<i class="fas fa-save"></i> ${t('อัปเดต', 'Update')}` : 
+    submitBtn.innerHTML = product ?
+        `<i class="fas fa-save"></i> ${t('อัปเดต', 'Update')}` :
         `<i class="fas fa-plus"></i> ${t('บันทึก', 'Save')}`;
-    
+
     const catOptions = appData.categories.map(cat =>
         `<option value="${cat.id}" ${product && product.category === cat.id ? 'selected' : ''}>${adminLang === 'th' ? cat.th : cat.en}</option>`
     ).join('');
-    
+
     const sizeOptions = ['S', 'M', 'L', 'XL', 'One Size'].map(s =>
         `<option value="${s}" ${product && product.sizes && product.sizes.includes(s) ? 'selected' : ''}>${s}</option>`
     ).join('');
 
-    const imageHtml = uploadedImageUrl && uploadedImageUrl.startsWith('http') ? 
+    const imageHtml = uploadedImageUrl && uploadedImageUrl.startsWith('http') ?
         `<img src="${uploadedImageUrl}" alt="Product image" style="max-width:200px;max-height:200px;border-radius:8px;margin:10px auto;">` :
         `<div class="placeholder-text"><i class="fas fa-cloud-upload-alt"></i> ${t('คลิกเพื่ออัปโหลดรูปภาพ', 'Click to upload image')}</div>`;
+
+    // --- Build modal body with price conversion display ---
+    // We'll add a USD equivalent display next to the price input if currency is USD
+    const priceInputHtml = `
+        <div class="form-group">
+            <label>${t('ราคา (บาท)', 'Price (THB)')}</label>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <input type="number" id="pPrice" value="${product ? product.price : ''}" required min="0" style="flex:1;">
+                <span id="priceUsdDisplay" style="font-size:13px;color:#8a7e7a;font-weight:500;min-width:80px;">
+                    ${adminCurrency === 'usd' ? `≈ ${formatPrice(product ? product.price : 0)}` : ''}
+                </span>
+            </div>
+            <small style="color:#8a7e7a;">${t('ราคาในสกุลเงินบาท (THB) และจะแปลงเป็น USD อัตโนมัติ', 'Price in THB, automatically converted to USD')}</small>
+        </div>
+    `;
 
     body.innerHTML = `
         <div class="form-group">
@@ -592,7 +672,7 @@ function openProductModal(product = null) {
             </div>
             <small style="color:#8a7e7a;">${t('ป้อนภาษาอังกฤษ แล้วกดปุ่มเพื่อแปลเป็นไทย', 'Enter English and click Translate')}</small>
         </div>
-        
+
         <div class="form-group">
             <label>${t('รูปภาพสินค้า', 'Product Image')}</label>
             <div class="image-upload-container ${uploadedImageUrl && uploadedImageUrl.startsWith('http') ? 'has-image' : ''}" id="imageUploadContainer">
@@ -614,12 +694,9 @@ function openProductModal(product = null) {
                 <label>${t('หมวดหมู่', 'Category')}</label>
                 <select id="pCategory">${catOptions}</select>
             </div>
-            <div class="form-group">
-                <label>${t('ราคา (บาท)', 'Price (THB)')}</label>
-                <input type="number" id="pPrice" value="${product ? product.price : ''}" required min="0">
-            </div>
+            ${priceInputHtml}
         </div>
-        
+
         <div class="form-group">
             <label>${t('คำอธิบายภาษาไทย', 'Thai Description')}</label>
             <textarea id="pDescTh">${product ? product.desc_th : ''}</textarea>
@@ -636,11 +713,33 @@ function openProductModal(product = null) {
         </div>
     `;
 
-    // 🔥 SHOW MODAL - COVERS ENTIRE PAGE
+    // --- SHOW MODAL ---
     overlay.style.display = 'flex !important';
     overlay.classList.add('open');
-    document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+    document.body.style.overflow = 'hidden';
     console.log('✅ Full page modal opened!');
+
+    // --- Live Price Conversion Update ---
+    const priceInput = document.getElementById('pPrice');
+    const priceUsdDisplay = document.getElementById('priceUsdDisplay');
+
+    function updateUsdDisplay() {
+        if (!priceUsdDisplay) return;
+        const thb = parseFloat(priceInput.value) || 0;
+        if (adminCurrency === 'usd') {
+            const rate = getExchangeRate();
+            const usd = thb * rate;
+            priceUsdDisplay.textContent = `≈ $${usd.toFixed(2)}`;
+        } else {
+            priceUsdDisplay.textContent = '';
+        }
+    }
+
+    if (priceInput) {
+        priceInput.addEventListener('input', updateUsdDisplay);
+        // Initial update
+        setTimeout(updateUsdDisplay, 100);
+    }
 
     // --- IMAGE UPLOAD ---
     const uploadContainer = document.getElementById('imageUploadContainer');
@@ -697,7 +796,7 @@ function openProductModal(product = null) {
             if (uploadContainer) uploadContainer.style.borderColor = '#c9a84c';
 
             const url = await uploadImage(file);
-            
+
             if (url) {
                 uploadedImageUrl = url;
                 if (previewDiv) {
@@ -707,7 +806,7 @@ function openProductModal(product = null) {
                 if (uploadContainer) uploadContainer.classList.add('has-image');
                 toast(t('อัปโหลดสำเร็จ ✅', 'Upload successful ✅'));
             }
-            
+
             if (progressDiv) progressDiv.classList.remove('active');
             if (uploadContainer) uploadContainer.style.borderColor = '';
         });
@@ -733,7 +832,7 @@ function openProductModal(product = null) {
             const nameEn = document.getElementById('pNameEn');
             const descEn = document.getElementById('pDescEn');
             if (!nameEn || !descEn) return;
-            
+
             const nameEnValue = nameEn.value.trim();
             const descEnValue = descEn.value.trim();
             if (!nameEnValue && !descEnValue) {
@@ -755,7 +854,7 @@ function openProductModal(product = null) {
                 }
                 toast(t('แปลสำเร็จ ✅', 'Translation successful ✅'));
             } catch (error) {
-                toast(t('การแปลล้มเหลว ❌', 'Translation failed ❌'), 'error');
+                // already handled in translateText
             } finally {
                 translateBtn.disabled = false;
                 translateBtn.innerHTML = `<i class="fas fa-language"></i> ${t('แปล', 'Translate')}`;
@@ -767,7 +866,7 @@ function openProductModal(product = null) {
     if (form) {
         form.onsubmit = async (e) => {
             e.preventDefault();
-            
+
             const nameTh = document.getElementById('pNameTh');
             const nameEn = document.getElementById('pNameEn');
             const category = document.getElementById('pCategory');
@@ -775,12 +874,12 @@ function openProductModal(product = null) {
             const descTh = document.getElementById('pDescTh');
             const descEn = document.getElementById('pDescEn');
             const sizes = document.getElementById('pSizes');
-            
+
             if (!nameTh || !nameEn || !category || !price) {
                 toast(t('กรุณากรอกข้อมูลให้ครบถ้วน', 'Please fill all fields'), 'error');
                 return;
             }
-            
+
             const payload = {
                 name_th: nameTh.value.trim(),
                 name_en: nameEn.value.trim(),
@@ -791,25 +890,25 @@ function openProductModal(product = null) {
                 image: uploadedImageUrl || '👗',
                 sizes: sizes ? Array.from(sizes.selectedOptions).map(opt => opt.value) : [],
             };
-            
+
             if (submitBtn) {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t('กำลังบันทึก...', 'Saving...')}`;
             }
-            
+
             if (editingItem) {
                 await updateProduct(editingItem.id, { ...editingItem, ...payload });
             } else {
                 await addProduct(payload);
             }
-            
+
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = editingItem ? 
-                    `<i class="fas fa-save"></i> ${t('อัปเดต', 'Update')}` : 
+                submitBtn.innerHTML = editingItem ?
+                    `<i class="fas fa-save"></i> ${t('อัปเดต', 'Update')}` :
                     `<i class="fas fa-plus"></i> ${t('บันทึก', 'Save')}`;
             }
-            
+
             overlay.classList.remove('open');
             overlay.style.display = 'none';
             document.body.style.overflow = '';
@@ -987,7 +1086,12 @@ document.getElementById('adminLangSelect')?.addEventListener('change', (e) => {
 document.getElementById('adminCurrencySelect')?.addEventListener('change', (e) => {
     adminCurrency = e.target.value;
     localStorage.setItem('adminCurrency', adminCurrency);
-    renderAdmin();
+    // If switching to USD, ensure rate is fresh
+    if (adminCurrency === 'usd') {
+        fetchExchangeRate().then(() => renderAdmin());
+    } else {
+        renderAdmin();
+    }
 });
 
 // ============================================
@@ -1001,10 +1105,12 @@ document.getElementById('adminLogoutBtn')?.addEventListener('click', adminLogout
 (async function init() {
     console.log('🚀 Admin panel initializing...');
     await loadDataFromDB();
+    await fetchExchangeRate(); // <-- 🔥 ADD THIS LINE
     renderAdmin();
     console.log('✅ Admin panel ready!');
     console.log('📦 Products:', appData.products.length);
     console.log('📂 Categories:', appData.categories.length);
     console.log('📋 Orders:', appData.orders.length);
+    console.log(`💱 Exchange rate: 1 THB = ${exchangeRate} USD`);
     console.log('💡 Click "Add Product" or "Add Category" to test modals!');
 })();
