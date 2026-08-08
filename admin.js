@@ -39,18 +39,30 @@ function formatPrice(amount) {
 // ============================================
 async function fetchExchangeRate() {
     try {
-        const response = await fetch('https://api.exchangerate.host/latest?base=THB&symbols=USD');
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        // The API returns: { base: "THB", rates: { USD: 0.0286 }, ... }
-        if (data && data.rates && typeof data.rates.USD === 'number') {
-            exchangeRate = data.rates.USD;
-            rateLastUpdated = Date.now();
-            console.log(`✅ Exchange rate updated: 1 THB = ${exchangeRate} USD`);
-            return exchangeRate;
-        } else {
-            throw new Error('Invalid response structure');
+        // Try API #1: exchangerate.host
+        let response = await fetch('https://api.exchangerate.host/latest?base=THB&symbols=USD');
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.rates && typeof data.rates.USD === 'number') {
+                exchangeRate = data.rates.USD;
+                rateLastUpdated = Date.now();
+                console.log(`✅ Exchange rate updated: 1 THB = ${exchangeRate} USD`);
+                return exchangeRate;
+            }
         }
+        // If that fails, try API #2: Frankfurter (often works)
+        response = await fetch('https://api.frankfurter.app/latest?from=THB&to=USD');
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.rates && typeof data.rates.USD === 'number') {
+                exchangeRate = data.rates.USD;
+                rateLastUpdated = Date.now();
+                console.log(`✅ Exchange rate updated (Frankfurter): 1 THB = ${exchangeRate} USD`);
+                return exchangeRate;
+            }
+        }
+        // If both fail, throw
+        throw new Error('All exchange rate APIs failed');
     } catch (error) {
         console.warn('⚠️ Exchange rate fetch failed, using fallback:', error.message);
         exchangeRate = 0.03; // realistic fallback
@@ -75,11 +87,11 @@ function getExchangeRate() {
 const translationCache = {};
 
 async function translateText(text, targetLang = 'th') {
-    if (!text || !text.trim()) return text; // ← skip empty
-
+    if (!text || !text.trim()) return text;
     const cacheKey = text + '_' + targetLang;
     if (translationCache[cacheKey]) return translationCache[cacheKey];
 
+    // Try LibreTranslate first
     try {
         const response = await fetch('https://libretranslate.com/translate', {
             method: 'POST',
@@ -91,26 +103,37 @@ async function translateText(text, targetLang = 'th') {
                 format: 'text'
             })
         });
-
-        if (response.status === 429) {
-            // Too many requests – wait and retry once
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            return translateText(text, targetLang); // recursive retry (cache will catch it)
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.translatedText) {
+                translationCache[cacheKey] = data.translatedText;
+                return data.translatedText;
+            }
         }
+        // If LibreTranslate fails, fallback to MyMemory
+        console.warn('LibreTranslate failed, trying MyMemory...');
+    } catch (e) {
+        console.warn('LibreTranslate error, trying MyMemory...');
+    }
 
-        if (!response.ok) {
-            console.warn('Translation API error:', response.status);
-            toast('⚠️ ' + t('การแปลชั่วคราวไม่พร้อม ใช้ข้อความภาษาอังกฤษ', 'Translation temporarily unavailable, using English'), 'error');
-            return text;
+    // Fallback: MyMemory API (free, no key)
+    try {
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.responseData && data.responseData.translatedText) {
+                const translated = data.responseData.translatedText;
+                translationCache[cacheKey] = translated;
+                return translated;
+            }
         }
-
-        const data = await response.json();
-        const translated = data.translatedText || text;
-        translationCache[cacheKey] = translated;
-        return translated;
+        throw new Error('MyMemory failed');
     } catch (error) {
-        console.error('Translation failed:', error);
-        return text; // Always fallback to original
+        console.warn('All translation APIs failed, using original text:', error.message);
+        // Cache the original to avoid repeated attempts
+        translationCache[cacheKey] = text;
+        return text;
     }
 }
 
